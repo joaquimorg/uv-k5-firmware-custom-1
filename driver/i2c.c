@@ -44,126 +44,86 @@ void I2C_Stop(void)
 	SYSTICK_Delay250ns(4);
 }
 
-uint8_t I2C_Read_fast(bool bFinal)
+uint8_t I2C_Read(const bool end, const bool fast)
 {
-	uint8_t i, Data;
+	const unsigned int delay = fast ? 2 : 4;
+	int                i     = 8;
+	uint8_t            data  = 0;
 
 	PORTCON_PORTA_IE |= PORTCON_PORTA_IE_A11_BITS_ENABLE;
 	PORTCON_PORTA_OD &= ~PORTCON_PORTA_OD_A11_MASK;
 	GPIOA->DIR &= ~GPIO_DIR_11_MASK;
 
-	Data = 0;
-	for (i = 0; i < 8; i++)
+	while (--i >= 0)
 	{
 		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(2);
+		SYSTICK_Delay250ns(delay);
 		GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(2);
-		Data <<= 1;
-		SYSTICK_Delay250ns(2);
-		if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA))
-			Data |= 1U;
+		SYSTICK_Delay250ns(delay);
+		data = (data << 1) | (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA) ? 1u : 0u);
 		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(2);
+		SYSTICK_Delay250ns(delay);
 	}
 
 	PORTCON_PORTA_IE &= ~PORTCON_PORTA_IE_A11_MASK;
 	PORTCON_PORTA_OD |= PORTCON_PORTA_OD_A11_BITS_ENABLE;
 	GPIOA->DIR |= GPIO_DIR_11_BITS_OUTPUT;
 	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(2);
-	if (bFinal)
+	SYSTICK_Delay250ns(delay);
+	if (end)
 		GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
 	else
 		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-	SYSTICK_Delay250ns(2);
+	SYSTICK_Delay250ns(delay);
 	GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(2);
+	SYSTICK_Delay250ns(delay);
 	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(2);
+	SYSTICK_Delay250ns(delay);
 
-	return Data;
+	return data;
 }
 
-uint8_t I2C_Read(bool bFinal)
+int I2C_Write(uint8_t data) //, const bool fast)
 {
-	uint8_t i, Data;
-
-	PORTCON_PORTA_IE |= PORTCON_PORTA_IE_A11_BITS_ENABLE;
-	PORTCON_PORTA_OD &= ~PORTCON_PORTA_OD_A11_MASK;
-	GPIOA->DIR &= ~GPIO_DIR_11_MASK;
-
-	Data = 0;
-	for (i = 0; i < 8; i++)
-	{
-		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(4);
-		GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(4);
-		Data <<= 1;
-		SYSTICK_Delay250ns(4);
-		if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA))
-			Data |= 1U;
-		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(4);
-	}
-
-	PORTCON_PORTA_IE &= ~PORTCON_PORTA_IE_A11_MASK;
-	PORTCON_PORTA_OD |= PORTCON_PORTA_OD_A11_BITS_ENABLE;
-	GPIOA->DIR |= GPIO_DIR_11_BITS_OUTPUT;
-	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
-	if (bFinal)
-		GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-	else
-		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-	SYSTICK_Delay250ns(4);
-	GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
-	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
-
-	return Data;
-}
-
-int I2C_Write(uint8_t Data)
-{
-	uint8_t i;
+	const unsigned int delay = 4; // fast ? 2 : 4;
+	int i   = 8;
 	int ret = -1;
 
 	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
-	for (i = 0; i < 8; i++) {
-		if ((Data & 0x80) == 0) {
+	SYSTICK_Delay250ns(delay);
+	while (--i >= 0)
+	{
+		if ((data & 0x80) == 0)
 			GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-		} else {
+		else
 			GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-		}
-		Data <<= 1;
-		SYSTICK_Delay250ns(4);
+		data <<= 1;
+		SYSTICK_Delay250ns(delay);
 		GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(4);
+		SYSTICK_Delay250ns(delay);
 		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-		SYSTICK_Delay250ns(4);
+		SYSTICK_Delay250ns(delay);
 	}
 
 	PORTCON_PORTA_IE |= PORTCON_PORTA_IE_A11_BITS_ENABLE;
 	PORTCON_PORTA_OD &= ~PORTCON_PORTA_OD_A11_MASK;
 	GPIOA->DIR &= ~GPIO_DIR_11_MASK;
 	GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA);
-	SYSTICK_Delay250ns(4);
+	SYSTICK_Delay250ns(delay);
 	GPIO_SetBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
+	SYSTICK_Delay250ns(delay);
 
-	for (i = 0; i < 255; i++) {
-		if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA) == 0) {
+	for (i = 0; i < 255; i++)
+	{
+		if (GPIO_CheckBit(&GPIOA->DATA, GPIOA_PIN_I2C_SDA) == 0)
+		{
 			ret = 0;
 			break;
 		}
 	}
 
 	GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_I2C_SCL);
-	SYSTICK_Delay250ns(4);
+	SYSTICK_Delay250ns(delay);
 	PORTCON_PORTA_IE &= ~PORTCON_PORTA_IE_A11_MASK;
 	PORTCON_PORTA_OD |= PORTCON_PORTA_OD_A11_BITS_ENABLE;
 	GPIOA->DIR |= GPIO_DIR_11_BITS_OUTPUT;
@@ -179,22 +139,13 @@ int I2C_ReadBuffer(void *pBuffer, const unsigned int Size, const bool fast)
 
 	if (Size == 1)
 	{
-		*pData = fast ? I2C_Read_fast(true) : I2C_Read(true);
+		*pData = I2C_Read(true, fast);
 		return 1;
 	}
 
-	if (fast)
-	{
-		for (i = 0; i < (Size - 1); i++)
-			pData[i] = I2C_Read_fast(false);
-		pData[i++] = I2C_Read_fast(true);
-	}
-	else
-	{
-		for (i = 0; i < (Size - 1); i++)
-			pData[i] = I2C_Read(false);
-		pData[i++] = I2C_Read(true);
-	}
+	for (i = 0; i < (Size - 1); i++)
+		pData[i] = I2C_Read(false, fast);
+	pData[i++] = I2C_Read(true, fast);
 
 	return Size;
 }

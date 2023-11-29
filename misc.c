@@ -33,7 +33,9 @@ const uint16_t        menu_timeout_long_500ms          = 120000 / 500;  // 2 min
 
 const uint16_t        backlight_tx_rx_time_secs        =  10;           // 10 seconds
 
-const uint8_t         dtmf_rx_live_timeout_500ms       =   6000 / 500;  // 6 seconds live decoder on screen
+#ifdef ENABLE_DTMF_LIVE_DECODER
+	const uint8_t     dtmf_rx_live_timeout_500ms       =   6000 / 500;  // 6 seconds live decoder on screen
+#endif
 const uint8_t         dtmf_rx_timeout_500ms            =  10000 / 500;  // 10 seconds till we wipe the DTMF receiver
 const uint8_t         dtmf_decode_ring_500ms           =  15000 / 500;  // 15 seconds .. time we sound the ringing for
 const uint8_t         dtmf_txstop_500ms                =   3000 / 500;  // 6 seconds
@@ -47,8 +49,10 @@ const uint8_t         key_input_timeout_500ms          =   6000 / 500;  // 6 sec
 
 const uint8_t         key_debounce_10ms                =     30 / 10;   // 30ms
 const uint8_t         key_side_long_press_10ms         =   1000 / 10;   // 1 second
-const uint8_t         key_long_press_10ms              =    300 / 10;   // 300ms
-const uint8_t         key_repeat_10ms                  =     50 / 10;   // 50ms
+const uint8_t         key_long_press_10ms              =    320 / 10;   // 320ms
+const uint8_t         key_repeat_initial_10ms          =    200 / 10;   // 200ms
+const uint8_t         key_repeat_fastest_10ms          =     10 / 10;   // 10ms
+const uint16_t        key_repeat_speedup_10ms          =   2500 / 10;   // speed-up key repeat once every 2.5 seconds
 
 const uint16_t        search_freq_css_10ms             =  10000 / 10;   // 10 seconds
 const uint16_t        search_10ms                      =    210 / 10;   // 210ms .. don't reduce this
@@ -99,7 +103,9 @@ volatile bool         g_power_save_expired;
 volatile uint16_t     g_dual_watch_tick_10ms;
 volatile bool         g_dual_watch_delay_down_expired = true;
 
-volatile uint8_t      g_serial_config_tick_500ms;
+#if defined(ENABLE_UART)
+	volatile uint8_t  g_serial_config_tick_500ms;
+#endif
 
 volatile bool         g_next_time_slice_500ms;
 
@@ -334,4 +340,19 @@ void NUMBER_trim_trailing_zeros(char *str)
 				str[i--] = 0;
 		}
 	}
+}
+
+// linear search, ascending, using addition
+uint16_t NUMBER_isqrt(const uint32_t y)
+{
+	uint16_t L = 0;
+	uint32_t a = 1;
+	uint32_t d = 3;
+	while (a <= y)
+	{
+		a += d;	// (a + 1) ^ 2
+		d += 2;
+		L += 1;
+	}
+	return L;
 }

@@ -56,7 +56,6 @@ ENABLE_VOICE                     := 0       want to hear voices ?
 ENABLE_MUTE_RADIO_FOR_VOICE      := 1       mute the radios audio when a voice is playing
 ENABLE_VOX                       := 0       voice operated transmission
 ENABLE_VOX_MORE_SENSITIVE        := 1       make VOX more sensitive
-ENABLE_REDUCE_LOW_MID_TX_POWER   := 1       reduce the low and mid TX power levels (high remains unchanged)
 ENABLE_ALARM                     := 0       TX alarms
 ENABLE_1750HZ                    := 0       side key 1750Hz TX tone (older style repeater access)
 ENABLE_MDC1200                   := 0       enable MDC1200 TX/RX + menu TX option
@@ -65,13 +64,17 @@ ENABLE_MDC1200_SIDE_BEEP         := 1       enable short side tone/beep when MDC
 ENABLE_PWRON_PASSWORD            := 0       include power-on password code
 ENABLE_RESET_AES_KEY             := 1       '1' = reset/clear the AES key stored in the eeprom (only if it's set)
 ENABLE_BIG_FREQ                  := 0       big font frequencies (like original QS firmware)
+ENABLE_DTMF_LIVE_DECODER         := 0       enable the live DTMF display/decoder .. adds a menu option
 ENABLE_SHOW_FREQS_CHAN           := 1       show the channel name under the frequency if the frequency is found in a channel
 ENABLE_SMALL_BOLD                := 1       bold channel name/no. (when name + freq channel display mode)
 ENABLE_TRIM_TRAILING_ZEROS       := 1       trim away any trailing zeros on frequencies
 ENABLE_WIDE_RX                   := 1       full 18MHz to 1300MHz RX (though front-end/PA not designed for full range)
 ENABLE_TX_WHEN_AM                := 0       allow TX (always FM) when RX is set to AM
-ENABLE_F_CAL_MENU                := 0       enable/disable the radios hidden frequency calibration menu
-ENABLE_TX_UNLOCK                 := 0       allow TX everywhere EXCEPT airband (108~137) .. TX harmonic content will cause interference to other services, do so entirely at your own risk !
+ENABLE_F_CAL_MENU                := 0       enable frequency calibration hidden menu
+ENABLE_FM_DEV_CAL_MENU           := 0       enable FM deviation calibration hidden menu
+ENABLE_TX_UNLOCK_MENU            := 0       allow TX everywhere EXCEPT airband (108~137) .. TX harmonic content will cause interference to other services, do so entirely at your own risk !
+ENABLE_TX_POWER_CAL_MENU         := 0       used to compute the TX power register values .. leave at '0'
+ENABLE_TX_POWER_FIX              := 1       fix the TX output power, L ~ 10mW, M ~ 500mW, H ~ 4W, U ~ user settable
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 0       standard CTCSS tail phase shift rather than QS's own 55Hz tone method
 ENABLE_CONTRAST                  := 0       add contrast menu
 ENABLE_BOOT_BEEPS                := 0       gives user audio feedback on volume knob position at boot-up
@@ -97,7 +100,7 @@ ENABLE_SIDE_BUTT_MENU            := 1       enable menu option for configuring t
 ENABLE_KEYLOCK                   := 1       enable keylock menu option + keylock code
 ENABLE_PANADAPTER                := 1       centered on the selected VFO RX frequency, only shows if dual-watch is disabled
 ENABLE_PANADAPTER_PEAK_FREQ      := 0       show the peak panadapter frequency
-#ENABLE_SINGLE_VFO_CHAN          := 0       not yet implemented - single VFO on display when possible
+ENABLE_SINGLE_VFO_CHAN           := 0       not yet complete
 ```
 
 # New/modified function keys
@@ -224,15 +227,12 @@ You may obtain a copy of the License at
 <p float="left">
   <img src="/images/image1.png" width=300 />
   <img src="/images/image4.png" width=300 />
-  <img src="/images/image2.png" width=300 />
-  <img src="/images/image3.png" width=300 />
 </p>
 
-Video showing the AM fix working ..
+ <img src="/images/UV_K5_8_antenna.png" />
+ <img src="/images/UV_K5_8_antenna_text.png" />
 
-<video src="/images/AM_fix.mp4"></video>
-
-<video src="https://github.com/OneOfEleven/uv-k5-firmware-custom/assets/51590168/2a3a9cdc-97da-4966-bf0d-1ce6ad09779c"></video>
+<video src="https://github.com/OneOfEleven/uv-k5-firmware-custom/assets/51590168/921162a7-e9f2-4023-b4d5-526567f8b989"></video>
 
 # WARNING if trying to use K5/K6 to TX out of band ..
 

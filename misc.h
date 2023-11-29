@@ -28,6 +28,10 @@
 	#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
 
+#ifndef SQR
+	#define SQR(x)    ((x) * (x))
+#endif
+
 #ifndef MAX
 //	#define MAX(a, b) ({ __typeof__ (a) _a = (a); __typeof__ (b) _b = (b); _a > _b ? _a : _b; })
 #endif
@@ -103,7 +107,6 @@ typedef enum css_scan_mode_e css_scan_mode_t;
 enum scan_next_chan_e {
 	SCAN_NEXT_CHAN_SCANLIST1 = 0,
 	SCAN_NEXT_CHAN_SCANLIST2,
-	SCAN_NEXT_CHAN_DUAL_WATCH,
 	SCAN_NEXT_CHAN_USER,
 	SCAN_NEXT_NUM
 };
@@ -128,7 +131,9 @@ extern const uint16_t        menu_timeout_long_500ms;
 
 extern const uint16_t        backlight_tx_rx_time_secs;
 
-extern const uint8_t         dtmf_rx_live_timeout_500ms;
+#ifdef ENABLE_DTMF_LIVE_DECODER
+	extern const uint8_t     dtmf_rx_live_timeout_500ms;
+#endif
 extern const uint8_t         dtmf_rx_timeout_500ms;
 extern const uint8_t         dtmf_decode_ring_500ms;
 extern const uint8_t         dtmf_txstop_500ms;
@@ -144,7 +149,9 @@ extern const uint8_t         key_input_timeout_500ms;
 extern const uint8_t         key_debounce_10ms;
 extern const uint8_t         key_side_long_press_10ms;
 extern const uint8_t         key_long_press_10ms;
-extern const uint8_t         key_repeat_10ms;
+extern const uint8_t         key_repeat_initial_10ms;
+extern const uint8_t         key_repeat_fastest_10ms;
+extern const uint16_t        key_repeat_speedup_10ms;
 
 extern const uint16_t        search_freq_css_10ms;
 extern const uint16_t        search_10ms;
@@ -191,7 +198,9 @@ extern volatile bool         g_power_save_expired;
 extern volatile uint16_t     g_dual_watch_tick_10ms;
 extern volatile bool         g_dual_watch_delay_down_expired;
 
-extern volatile uint8_t      g_serial_config_tick_500ms;
+#if defined(ENABLE_UART)
+	extern volatile uint8_t  g_serial_config_tick_500ms;
+#endif
 
 extern volatile bool         g_next_time_slice_500ms;
 
@@ -333,6 +342,7 @@ void         NUMBER_Get(char *pDigits, uint32_t *pInteger);
 void         NUMBER_ToDigits(uint32_t Value, char *pDigits);
 int32_t      NUMBER_AddWithWraparound(int32_t Base, int32_t Add, int32_t LowerLimit, int32_t UpperLimit);
 void         NUMBER_trim_trailing_zeros(char *str);
+uint16_t     NUMBER_isqrt(const uint32_t y);
 
 #endif
 

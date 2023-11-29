@@ -79,7 +79,7 @@ static void ACTION_FlashLight(void)
 
 void ACTION_Power(void)
 {
-	if (++g_tx_vfo->channel.tx_power > OUTPUT_POWER_HIGH)
+	if (++g_tx_vfo->channel.tx_power > OUTPUT_POWER_USER)
 		g_tx_vfo->channel.tx_power = OUTPUT_POWER_LOW;
 
 	#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
@@ -209,8 +209,10 @@ void ACTION_Scan(bool bRestart)
 
 		DTMF_clear_RX();
 
-		g_dtmf_rx_live_timeout = 0;
-		memset(g_dtmf_rx_live, 0, sizeof(g_dtmf_rx_live));
+		#ifdef ENABLE_DTMF_LIVE_DECODER
+			g_dtmf_rx_live_timeout = 0;
+			memset(g_dtmf_rx_live, 0, sizeof(g_dtmf_rx_live));
+		#endif
 
 		RADIO_select_vfos();
 

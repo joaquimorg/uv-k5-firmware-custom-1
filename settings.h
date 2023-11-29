@@ -24,6 +24,16 @@
 #include "dcs.h"
 #include "frequencies.h"
 
+enum {
+	FM_DEV_LIMIT_LOWER_NARROW   =  700,
+	FM_DEV_LIMIT_DEFAULT_NARROW =  900,
+	FM_DEV_LIMIT_UPPER_NARROW   = 1500,   // 1100
+
+	FM_DEV_LIMIT_LOWER_WIDE     =  900,
+	FM_DEV_LIMIT_DEFAULT_WIDE   = 1283,
+	FM_DEV_LIMIT_UPPER_WIDE     = 1600
+};
+
 enum mod_mode_e {
 	MOD_MODE_FM = 0,
 	MOD_MODE_AM,
@@ -48,7 +58,7 @@ enum {
 	FREQ_LOCK_430,
 	FREQ_LOCK_438,
 	FREQ_LOCK_446,
-#ifdef ENABLE_TX_UNLOCK
+#ifdef ENABLE_TX_UNLOCK_MENU
 	FREQ_LOCK_TX_UNLOCK,
 #endif
 	FREQ_LOCK_LAST
@@ -83,7 +93,8 @@ enum {
 enum {
 	OUTPUT_POWER_LOW = 0,
 	OUTPUT_POWER_MID,
-	OUTPUT_POWER_HIGH
+	OUTPUT_POWER_HIGH,
+	OUTPUT_POWER_USER
 };
 
 enum {
@@ -141,10 +152,17 @@ enum {
 	BANDWIDTH_NARROW
 };
 
+enum compand_e {
+	COMPAND_OFF = 0,
+	COMPAND_TX,
+	COMPAND_RX,
+	COMPAND_TX_RX
+};
+
 enum ptt_id_e {
 	PTT_ID_OFF = 0,    // OFF
-	PTT_ID_TX_UP,      // BEGIN OF TX
-	PTT_ID_TX_DOWN,    // END OF TX
+	PTT_ID_BOT,        // BEGIN OF TX
+	PTT_ID_EOT,        // END OF TX
 	PTT_ID_BOTH,       // BOTH
 	PTT_ID_APOLLO      // Apolo quindar tones
 };
@@ -178,101 +196,63 @@ typedef enum vfo_state_e vfo_state_t;
 //
 // 16 bytes
 typedef struct {
-	// [0]
-	uint32_t frequency;                      //
-	// [4]
-	uint32_t tx_offset;                      //
-	// [8]
-	uint8_t  rx_ctcss_cdcss_code;            //
+	// [byte 0-3]
+	uint32_t frequency;                      // rx frequency / 10
+	// [byte 4-7]
+	uint32_t tx_offset;                      // tx offset frequency / 10
+	// [byte 8]
+	uint8_t  rx_ctcss_cdcss_code;            // ctcss 0 ~ 49   cdcss 0 ~ 103
 	// [9]
-	uint8_t  tx_ctcss_cdcss_code;            //
-
+	uint8_t  tx_ctcss_cdcss_code;            // ctcss 0 ~ 49   cdcss 0 ~ 103
 	// [10]
 	struct {
-		uint8_t  rx_ctcss_cdcss_type:2;          //
-		uint8_t  unused1:2;                      //
-		uint8_t  tx_ctcss_cdcss_type:2;          //
-		uint8_t  unused2:2;                      //
+		uint8_t rx_ctcss_cdcss_type:2;       // 0=none  1=ctcss  2=cdcss  3=cdcss reverse
+		uint8_t unused1:2;                   //
+		uint8_t tx_ctcss_cdcss_type:2;       // 0=none  1=ctcss  2=cdcss  3=cdcss reverse
+		uint8_t unused2:2;                   //
 	};
-
 	// [11]
 	struct {
-		uint8_t  tx_offset_dir:2;                //
-
-		#ifdef ENABLE_MDC1200
-			uint8_t mdc1200_mode:2;              //
-		#else
-			uint8_t unused3:2;                   //
-		#endif
-
-		#if 0
-			uint8_t mod_mode:1;                  //  FM/AM
-			uint8_t unused4:3;                   //
-		#else
-			uint8_t mod_mode:2;                  //  FM/AM/DSB
-			uint8_t unused4:2;                   //
-		#endif
+		uint8_t tx_offset_dir:2;             // 0=none  1=neg  2=pos
+		uint8_t mdc1200_mode:2;              // 1of11  0=none  1=bot  2=eot  3=both
+		uint8_t mod_mode:2;                  // 0=FM  1=AM  2=DSB
+		uint8_t unused4:2;                   //
 	};
-
 	// [12]
 	struct {
-		uint8_t  frequency_reverse:1;        // reverse repeater
-		uint8_t  channel_bandwidth:1;        // wide/narrow
-		uint8_t  tx_power:2;                 // 0, 1 or 2 .. L, M or H
-		uint8_t  busy_channel_lock:1;        //
-
-		#if 0
-			// QS
-			uint8_t unused5:3;               //
-		#else
-			// 1of11
-			uint8_t unused5:1;               //
-			uint8_t compand:2;               // 0 = off, 1 = TX, 2 = RX, 3 = TX/RX
-		#endif
+		uint8_t frequency_reverse:1;         // 0=disabled  1=enabled
+		uint8_t channel_bandwidth:1;         // 0=wide (25kHz)  1=narrow (12.5kHz)
+		uint8_t tx_power:2;                  // 0=low  1=medium  2=high  3=user
+		uint8_t busy_channel_lock:1;         // 0=disabled  1=enabled
+		uint8_t unused5:1;                   //
+		uint8_t compand:2;                   // 0=off  1=TX  2=RX  3=TX/RX
 	};
-
 	// [13]
 	struct {
-		uint8_t  dtmf_decoding_enable:1;     //
-		uint8_t  dtmf_ptt_id_tx_mode:3;      //
-
-		#if 0
-			// QS
-			uint8_t unused6:4;               //
-		#else
-			// 1of11
-			uint8_t squelch_level:4;         // 0 ~ 9 per channel squelch, 0 = use main squelch level
-		#endif
+		uint8_t dtmf_decoding_enable:1;      // 0=disabled  1=enabled
+		uint8_t dtmf_ptt_id_tx_mode:3;       // 0=none  1=bot  2=eot  3=both  4=apollo
+		uint8_t squelch_level:4;             // 1of11   0 = use main squelch level, 1 ~ 9 per channel squelch
 	};
-
 	// [14]
-	uint8_t  step_setting;                   //
-
+	struct {
+		uint8_t step_setting:4;              // step size index 0 ~ 15
+		uint8_t tx_power_user:4;             // 1of11 .. user power setting 0 ~ 15
+	};
 	// [15]
-	#if 0
-		// QS
-		struct {
-			uint8_t scrambler:4;             //
-			uint8_t unused7:4;               //
-		};
-	#else
-		// 1of11
-		struct {
-			uint8_t scrambler:5;             // more scrambler frequencies
-			uint8_t unused7:3;               //
-		};
-	#endif
-
-} __attribute__((packed)) t_channel;         //
+	struct {
+		uint8_t scrambler:5;                 // voice inversion scrambler frequency index 0 ~ 31
+		uint8_t unused7:3;                   //
+	};
+} __attribute__((packed)) t_channel;
 
 typedef union {
 	struct {
-		uint8_t    band:4;                   // why do QS have these bits ?  band can/is computed from the frequency
+		uint8_t    band:4;                   // 0~6   otherwise channel unused
 		uint8_t    unused:2;                 //
 		uint8_t    scanlist2:1;              // set if in scan list 2
 		uint8_t    scanlist1:1;              // set if in scan list 1
 	};
-	uint8_t attributes;
+	uint8_t attributes;                      //
 } __attribute__((packed)) t_channel_attrib;
 
 typedef struct {
@@ -522,8 +502,7 @@ typedef struct {
 	} __attribute__((packed)) rssi_cal;
 
 	// 0x1ED0
-	struct
-	{
+	struct {
 		union {
 			struct {
 				uint8_t  low[3];                    //
@@ -537,14 +516,31 @@ typedef struct {
 
 	// 0x1F40
 	uint16_t battery[6];                            //
-	uint8_t  unused1[4];                            // 0xff's
+	#if 1
+		// QS
+		uint8_t unused1[4];                         // 0xff's
+	#else
+		// 1of11
+		struct {
+			uint16_t wide;                          // 0 ~ 4095
+			uint16_t narrow;                        // 0 ~ 4095
+		} __attribute__((packed)) tx_deviation;
+	#endif
 
 	// 0x1F50
-	struct
-	{
-		uint16_t threshold[10];                     //
-		uint8_t  unused[4];                         // 0xff's
-	} __attribute__((packed)) vox[2];
+	uint16_t vox_threshold_enable[10];              //
+	uint8_t  unused[4];                             // 0xff's
+
+	// 0x1F68
+	uint16_t vox_threshold_disable[10];             //
+//	#ifdef ENABLE_FM_DEV_CAL_MENU
+		// 1of11
+		uint16_t deviation_narrow;                  //
+		uint16_t deviation_wide;                    //
+//	#else
+//		// QS
+//		uint8_t  unused[4];                         // 0xff's
+//	#endif
 
 	// 0x1F80
 	uint8_t  mic_gain_dB2[5];                       //
@@ -613,7 +609,7 @@ typedef struct vfo_info_t
 	uint8_t          squelch_open_glitch_thresh;
 	uint8_t          squelch_close_glitch_thresh;
 
-	uint8_t          txp_calculated_setting;
+	uint8_t          txp_reg_value;
 
 } vfo_info_t;
 
@@ -623,6 +619,7 @@ extern t_eeprom g_eeprom;
 
 void SETTINGS_read_eeprom(void);
 void SETTINGS_write_eeprom_config(void);
+void SETTINGS_write_eeprom_calib(void);
 
 #ifdef ENABLE_FMRADIO
 	void SETTINGS_save_fm(void);

@@ -81,7 +81,7 @@ enum step_setting_e {
 };
 typedef enum step_setting_e step_setting_t;
 
-extern const uint16_t STEP_FREQ_TABLE[21];
+extern const uint16_t STEP_FREQ_TABLE[16];
 extern uint16_t       step_freq_table_sorted[ARRAY_SIZE(STEP_FREQ_TABLE)];
 
 #ifdef ENABLE_NOAA
@@ -94,7 +94,9 @@ unsigned int     FREQUENCY_get_step_index(const unsigned int step_size);
 void             FREQUENCY_init(void);
 
 frequency_band_t FREQUENCY_GetBand(uint32_t Frequency);
-uint8_t          FREQUENCY_CalculateOutputPower(uint8_t TxpLow, uint8_t TxpMid, uint8_t TxpHigh, int32_t LowerLimit, int32_t Middle, int32_t UpperLimit, int32_t Frequency);
+
+unsigned int     FREQUENCY_band_segment(const uint32_t freq);
+uint8_t          FREQUENCY_CalculateOutputPower(const int16_t low_tx_pwr, const int32_t mid_tx_pwr, const int16_t high_tx_pwr, const uint32_t freq);
 
 uint32_t         FREQUENCY_floor_to_step(uint32_t freq, const uint32_t step_size, const uint32_t lower, const uint32_t upper);
 

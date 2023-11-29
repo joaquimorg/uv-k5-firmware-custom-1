@@ -28,6 +28,7 @@
 #ifdef ENABLE_MDC1200
 	#include "mdc1200.h"
 #endif
+#include "settings.h"
 
 #ifndef ARRAY_SIZE
 	#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -403,13 +404,15 @@ void BK4819_EnableVox(uint16_t VoxEnableThreshold, uint16_t VoxDisableThreshold)
 	BK4819_write_reg(0x31, BK4819_read_reg(0x31) | (1u << 2));
 }
 
-void BK4819_set_TX_deviation(const bool narrow)
+void BK4819_set_TX_deviation(uint16_t deviation)
 {
-	const uint8_t scrambler = (BK4819_read_reg(0x31) >> 1) & 1u;
-	uint16_t deviation = narrow ? 900 : 1232;  // 0 ~ 4095
-	if (scrambler)
-		deviation -= 200;
-	BK4819_write_reg(0x40, (3u << 12) | deviation);
+//	const uint8_t scrambler = (BK4819_read_reg(0x31) >> 1) & 1u;
+//	uint16_t deviation = narrow ? 900 : 1232;
+//	if (scrambler)
+//		deviation -= 200;
+	if (deviation > 4095)
+		deviation = 4095;
+	BK4819_write_reg(0x40, (3u << 12) | deviation);   // deviaion 0 ~ 4095
 }
 
 void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth)
@@ -476,7 +479,7 @@ void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth)
 				(0u << 15) |     // 0
 				(4u << 12) |     // 3 RF filter bandwidth
 				(2u <<  9) |     // 0 RF filter bandwidth when signal is weak
-				(3u <<  6) |     // 0 AF-TX-LPF-2 filter band width
+				(4u <<  6) |     // 0 AF-TX-LPF-2 filter band width
 				(2u <<  4) |     // 2 BW Mode Selection
 				(1u <<  3) |     // 1
 				(0u <<  2) |     // 0 Gain after FM Demodulation
@@ -488,7 +491,7 @@ void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth)
 				(0u << 15) |     // 0
 				(4u << 12) |     // 4 RF filter bandwidth
 				(2u <<  9) |     // 0 RF filter bandwidth when signal is weak
-				(2u <<  6) |     // 1 AF-TX-LPF-2 filter Band Width
+				(6u <<  6) |     // 1 AF-TX-LPF-2 filter Band Width
 				(0u <<  4) |     // 0 BW Mode Selection
 				(1u <<  3) |     // 1
 				(0u <<  2) |     // 0 Gain after FM Demodulation
@@ -529,7 +532,7 @@ void BK4819_SetupPowerAmplifier(const uint8_t bias, const uint32_t frequency)
 	//               7 = max
 	//               0 = min
 	//
-	//                                                                         280MHz     gain 1 = 1  gain 2 = 0  gain 1 = 4  gain 2 = 2
+	//                                       280MHz     gain 1 = 1  gain 2 = 0  gain 1 = 4  gain 2 = 2
 	const uint8_t gain   = (frequency == 0) ? 0 : (frequency < rf_filter_transition_freq) ? (1u << 3) | (0u << 0) : (4u << 3) | (2u << 0);
 	const uint8_t enable = 1;
 	BK4819_write_reg(0x36, ((uint16_t)bias << 8) | ((uint16_t)enable << 7) | ((uint16_t)gain << 0));
@@ -546,6 +549,10 @@ void BK4819_set_rf_frequency(const uint32_t frequency, const bool trigger_update
 		BK4819_write_reg(0x30, reg & ~BK4819_REG_30_ENABLE_VCO_CALIB);
 		BK4819_write_reg(0x30, reg);
 	}
+
+	#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+//		UART_printf("bk freq %4u.%05u\n", frequency / 100000, frequency % 100000);
+	#endif
 }
 
 void BK4819_SetupSquelch(
@@ -735,9 +742,9 @@ void BK4819_SetCompander(const unsigned int mode)
 
 	const uint16_t r31 = BK4819_read_reg(0x31);
 
-	if (mode == 0)
+	if (mode == COMPAND_OFF)
 	{	// disable
-		BK4819_write_reg(0x31, r31 & ~(1u << 3));
+		BK4819_write_reg(0x31, r31 & ~(1ul << 3));
 		return;
 	}
 
@@ -753,7 +760,7 @@ void BK4819_SetCompander(const unsigned int mode)
 	//
 	// <6:0>   64 Compress (AF Tx) noise point (dB)
 	//
-	const uint16_t compress_ratio = (mode == 1 || mode >= 3) ? 2 : 0;  // 2:1
+	const uint16_t compress_ratio = (mode == COMPAND_TX || mode == COMPAND_TX_RX) ? 2 : 0;  // 2:1
 	BK4819_write_reg(0x29, // (BK4819_read_reg(0x29) & ~(3u << 14)) | (compress_ratio << 14));
 		(compress_ratio << 14) |
 		(86u            <<  7) |   // compress 0dB
@@ -771,7 +778,7 @@ void BK4819_SetCompander(const unsigned int mode)
 	//
 	// <6:0>   56 Expander (AF Rx) noise point (dB)
 	//
-	const uint16_t expand_ratio = (mode >= 2) ? 1 : 0;   // 1:2
+	const uint16_t expand_ratio = (mode == COMPAND_RX || mode == COMPAND_TX_RX) ? 1 : 0;   // 1:2
 	BK4819_write_reg(0x28, // (BK4819_read_reg(0x28) & ~(3u << 14)) | (expand_ratio << 14));
 		(expand_ratio << 14) |
 		(86u          <<  7) |   // expander 0dB
@@ -1183,16 +1190,16 @@ void BK4819_PlayDTMF(char Code)
 	{
 			{ // tone1
 					941,  // '0'
-					679,  // '1'
+					697,  // '1'
 					697,  // '2'
-					679,  // '3'
+					697,  // '3'
 					770,  // '4'
 					770,  // '5'
 					770,  // '6'
 					852,  // '7'
 					852,  // '8'
 					852,  // '9'
-					679,  // 'A'
+					697,  // 'A'
 					770,  // 'B'
 					852,  // 'C'
 					941,  // 'D'
@@ -2353,8 +2360,8 @@ void BK4819_reset_fsk(void)
 					(0u <<  4) |   // 0 ~ 15  preamble length .. bit toggling
 					(1u <<  3) |   // 0/1     sync length
 					(0u <<  0);    // 0 ~ 7   ???
-		fsk_reg59 |= long_preamble ? 15u << 4 : 3u << 4; 
-			
+		fsk_reg59 |= long_preamble ? 15u << 4 : 3u << 4;
+
 		// Set packet length (not including pre-amble and sync bytes that we can't seem to disable)
 		BK4819_write_reg(0x5D, ((size - 1) << 8));
 

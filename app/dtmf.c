@@ -46,8 +46,10 @@ uint8_t            g_dtmf_rx_index;
 uint8_t            g_dtmf_rx_timeout;
 bool               g_dtmf_rx_pending;
 				   
-char               g_dtmf_rx_live[20];
-uint8_t            g_dtmf_rx_live_timeout;
+#ifdef ENABLE_DTMF_LIVE_DECODER
+	char           g_dtmf_rx_live[20];
+	uint8_t        g_dtmf_rx_live_timeout;
+#endif
 
 bool               g_dtmf_is_contact_valid;
 char               g_dtmf_id[4];
@@ -433,7 +435,7 @@ bool DTMF_Reply(void)
 			if (g_dtmf_call_state != DTMF_CALL_STATE_NONE                   ||
 			    g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_APOLLO ||
 			    g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_OFF    ||
-			    g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_TX_DOWN)
+			    g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_EOT)
 			{
 				g_dtmf_reply_state = DTMF_REPLY_NONE;
 				return false;

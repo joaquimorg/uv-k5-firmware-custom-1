@@ -19,7 +19,7 @@ ENABLE_AIRCOPY_RX_REBOOT         := 0
 ENABLE_FMRADIO_64_76             := 0
 ENABLE_FMRADIO_76_90             := 0
 ENABLE_FMRADIO_76_108            := 0
-ENABLE_FMRADIO_875_108           := 1
+ENABLE_FMRADIO_875_108           := 0
 ENABLE_FMRADIO_64_108            := 0
 # NOAA 1.2 kB
 ENABLE_NOAA                      := 0
@@ -28,8 +28,8 @@ ENABLE_VOICE                     := 0
 ENABLE_MUTE_RADIO_FOR_VOICE      := 0
 # Tx on Voice 1.0 kB
 ENABLE_VOX                       := 0
-ENABLE_VOX_MORE_SENSITIVE        := 1
-ENABLE_REDUCE_LOW_MID_TX_POWER   := 1
+ENABLE_VOX_MORE_SENSITIVE        := 0
+ENABLE_REDUCE_LOW_MID_TX_POWER   := 0
 # Tx Alarm 600 B
 ENABLE_ALARM                     := 0
 ENABLE_TX1750                    := 0
@@ -46,19 +46,19 @@ ENABLE_SMALL_BOLD                := 1
 # smallest font 2 kB
 ENABLE_SMALLEST_FONT             := 0
 # trim trailing 44 B
-ENABLE_TRIM_TRAILING_ZEROS       := 0
+ENABLE_TRIM_TRAILING_ZEROS       := 1
 ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
 # Freq calibration 188 B
 ENABLE_F_CAL_MENU                := 0
 ENABLE_TX_UNLOCK                 := 0
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 1
-ENABLE_CONTRAST                  := 0
+ENABLE_CONTRAST                  := 1
 ENABLE_BOOT_BEEPS                := 0
 ENABLE_DTMF_CALL_FLASH_LIGHT     := 1
 ENABLE_FLASH_LIGHT_SOS_TONE      := 0
 ENABLE_SHOW_CHARGE_LEVEL         := 0
-ENABLE_REVERSE_BAT_SYMBOL        := 1
+ENABLE_REVERSE_BAT_SYMBOL        := 0
 ENABLE_FREQ_SEARCH_LNA           := 0
 ENABLE_FREQ_SEARCH_TIMEOUT       := 0
 ENABLE_CODE_SEARCH_TIMEOUT       := 0
@@ -71,9 +71,9 @@ ENABLE_AM_FIX                    := 1
 ENABLE_AM_FIX_SHOW_DATA          := 0
 # Squelch 12 B .. can't be right ?
 ENABLE_SQUELCH_MORE_SENSITIVE    := 1
-ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 1
+ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 0
 ENABLE_FASTER_CHANNEL_SCAN       := 1
-ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 1
+ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 0
 # Rx Signal Bar 400 B
 ENABLE_RX_SIGNAL_BAR             := 1
 # Tx Audio Bar 300 B
@@ -88,7 +88,7 @@ ENABLE_PANADAPTER_PEAK_FREQ      := 0
 
 #############################################################
 
-TARGET = firmware
+TARGET = build/firmware
 
 GIT_HASH_TMP := $(shell git rev-parse --short HEAD)
 ifeq ($(GIT_HASH_TMP), )
@@ -508,8 +508,12 @@ DEPS = $(OBJS:.o=.d)
 
 ifeq ($(OS), Windows_NT)
 	PYTHON = $(shell where python 2>NUL || where python3 2>NUL)
+	RM = del /Q
+	FixPath = $(subst /,\,$1)
 else
 	PYTHON = $(shell which python || which python3)
+	RM = rm -f
+	FixPath = $1
 endif
 
 all: $(TARGET)
@@ -547,4 +551,5 @@ bsp/dp32g030/%.h: hardware/dp32g030/%.def
 -include $(DEPS)
 
 clean:
-	rm -f $(TARGET).bin $(TARGET).packed.bin $(TARGET) $(OBJS) $(DEPS)
+#	rm -f $(TARGET).bin $(TARGET).packed.bin $(TARGET) $(OBJS) $(DEPS)
+	$(RM) $(call FixPath, $(TARGET).bin $(TARGET).packed.bin $(TARGET) $(OBJS) $(DEPS))

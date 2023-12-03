@@ -43,7 +43,7 @@ ENABLE_BIG_FREQ                  := 0
 ENABLE_DTMF_LIVE_DECODER         := 0
 ENABLE_SHOW_FREQS_CHAN           := 0
 # smaa bolf 580 B
-ENABLE_SMALL_BOLD                := 0
+ENABLE_SMALL_BOLD                := 1
 # smallest font 2 kB
 ENABLE_SMALLEST_FONT             := 1
 # trim trailing 44 B
@@ -51,14 +51,9 @@ ENABLE_TRIM_TRAILING_ZEROS       := 1
 ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
 # Frequency calibration 188 B
-ENABLE_F_CAL_MENU                := 0
-<<<<<<< HEAD
+ENABLE_F_CAL_MENU                := 1
 ENABLE_FM_DEV_CAL_MENU           := 1
 ENABLE_TX_UNLOCK_MENU            := 1
-=======
-ENABLE_FM_DEV_CAL_MENU           := 0
-ENABLE_TX_UNLOCK_MENU            := 0
->>>>>>> b9cc34f599fab1718a62e7f78bea0ecb4a46bf95
 #ENABLE_TX_POWER_CAL_MENU        := 0
 ENABLE_TX_POWER_FIX              := 1
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 1
@@ -83,7 +78,7 @@ ENABLE_AM_FIX_SHOW_DATA          := 0
 ENABLE_SQUELCH_MORE_SENSITIVE    := 1
 ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 0
 ENABLE_FASTER_CHANNEL_SCAN       := 1
-ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 1
+ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 0
 # Tx Audio Bar 300 B
 ENABLE_TX_AUDIO_BAR              := 1
 # Side Button Menu 300 B

@@ -94,13 +94,12 @@ ENABLE_SQUELCH_MORE_SENSITIVE    := 1       make squelch levels a little bit mor
 ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 1       open the squelch when holding down UP or DN buttons when in frequency mode
 ENABLE_FASTER_CHANNEL_SCAN       := 1       increase the channel scan speed, but also make the squelch more twitchy
 ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 1       long press M, copy channel to VFO, or VFO to channel
-ENABLE_RX_SIGNAL_BAR             := 1       enable a menu option for showing an RSSI bar graph
 ENABLE_TX_AUDIO_BAR              := 1       enable a menu option for showing a TX audio level bar
 ENABLE_SIDE_BUTT_MENU            := 1       enable menu option for configuring the programmable side buttons
 ENABLE_KEYLOCK                   := 1       enable keylock menu option + keylock code
-ENABLE_PANADAPTER                := 1       centered on the selected VFO RX frequency, only shows if dual-watch is disabled
+ENABLE_PANADAPTER                := 0       centered on the selected VFO RX frequency, only shows if dual-watch is disabled
 ENABLE_PANADAPTER_PEAK_FREQ      := 0       show the peak panadapter frequency
-ENABLE_SINGLE_VFO_CHAN           := 0       not yet complete
+ENABLE_SINGLE_VFO_CHAN           := 1       switch to single VFO display when dual-watch and cross-VFO are disabled
 ```
 
 # New/modified function keys
@@ -227,6 +226,7 @@ You may obtain a copy of the License at
 <p float="left">
   <img src="/images/image1.png" width=300 />
   <img src="/images/image4.png" width=300 />
+  <img src="/images/single_vfo_mode.png" width=600 />
 </p>
 
  <img src="/images/UV_K5_8_antenna.png" />

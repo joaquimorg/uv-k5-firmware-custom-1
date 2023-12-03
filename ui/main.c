@@ -23,6 +23,9 @@
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
 #include "driver/st7565.h"
+#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+	#include "driver/uart.h"
+#endif
 #include "external/printf/printf.h"
 #include "font.h"
 #include "functions.h"
@@ -118,7 +121,11 @@ void draw_bar(uint8_t *line, const int len, const int max_width)
 
 		if (g_eeprom.config.setting.mic_bar)
 		{
-			const unsigned int line      = 3;
+			#ifdef ENABLE_SINGLE_VFO_CHAN
+				const unsigned int line  = (single_vfo >= 0 && !pan_enabled) ? 6 : 3;
+			#else
+				const unsigned int line  = 3;
+			#endif
 			const unsigned int txt_width = 7 * 3;                 // 3 text chars
 			const unsigned int bar_x     = 2 + txt_width + 4;     // X coord of bar graph
 			const unsigned int bar_width = LCD_WIDTH - 1 - bar_x;
@@ -161,124 +168,123 @@ void draw_bar(uint8_t *line, const int len, const int max_width)
 	}
 #endif
 
-#ifdef ENABLE_RX_SIGNAL_BAR
-	bool UI_DisplayRSSIBar(const int rssi, const unsigned int glitch, const unsigned int noise, const bool now)
+bool UI_DisplayRSSIBar(const int rssi, const unsigned int glitch, const unsigned int noise, const bool now)
+{
+	if (g_eeprom.config.setting.enable_rssi_bar)
 	{
-		if (g_eeprom.config.setting.enable_rssi_bar)
-		{
-			#ifdef SHOW_RX_TEST_VALUES
+		#ifdef SHOW_RX_TEST_VALUES
 
-				const unsigned int line  = 3;
-				char               str[22];
+			const unsigned int line  = 3;
+			char               str[22];
 
-				#ifdef ENABLE_KEYLOCK
-					if (g_eeprom.config.setting.key_lock && g_keypad_locked > 0)
-						return false;     // display is in use
-				#endif
-
-				if (g_current_function == FUNCTION_TRANSMIT || g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+			#ifdef ENABLE_KEYLOCK
+				if (g_eeprom.config.setting.key_lock && g_keypad_locked > 0)
 					return false;     // display is in use
+			#endif
 
-				if (now)
-					memset(g_frame_buffer[line], 0, LCD_WIDTH);
+			if (g_current_function == FUNCTION_TRANSMIT || g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+				return false;     // display is in use
 
-				sprintf(str, "r %3d g %3u n %3u", rssi, glitch, noise);
-				UI_PrintStringSmall(str, 2, 0, line);
-
-				if (now)
-					ST7565_BlitFullScreen();
-
-				return true;
-
-			#else
-
-				(void)glitch;  // TODO:
-				(void)noise;
-
-//				const int          s0_dBm       = -127;                  // S0 .. base level
-				const int          s0_dBm       = -147;                  // S0 .. base level
-
-				const int          s9_dBm       = s0_dBm + (6 * 9);      // S9 .. 6dB/S-Point
-				const int          bar_max_dBm  = s9_dBm + 80;           // S9+80dB
-//				const int          bar_min_dBm  = s0_dBm + (6 * 0);      // S0
-				const int          bar_min_dBm  = s0_dBm + (6 * 2);      // S2
-
-				// ************
-
-				const unsigned int txt_width    = 7 * 8;                 // 8 text chars
-				const unsigned int bar_x        = 2 + txt_width + 4;     // X coord of bar graph
-				const unsigned int bar_width    = LCD_WIDTH - 1 - bar_x;
-
-				const int          rssi_dBm     = (rssi / 2) - 160;
-				const int          clamped_dBm  = (rssi_dBm <= bar_min_dBm) ? bar_min_dBm : (rssi_dBm >= bar_max_dBm) ? bar_max_dBm : rssi_dBm;
-				const unsigned int bar_range_dB = bar_max_dBm - bar_min_dBm;
-				const unsigned int len          = ((clamped_dBm - bar_min_dBm) * bar_width) / bar_range_dB;
-
-				#ifdef ENABLE_SINGLE_VFO_CHAN
-					const unsigned int line     = (single_vfo >= 0 && !pan_enabled) ? 7 : 3;
-				#else
-					const unsigned int line     = 3;
-				#endif
-
-				char               s[16];
-
-				#ifdef ENABLE_KEYLOCK
-					if (g_eeprom.config.setting.key_lock && g_keypad_locked > 0)
-						return false;     // display is in use
-				#endif
-
-				if (g_current_function == FUNCTION_TRANSMIT ||
-					g_current_display_screen != DISPLAY_MAIN ||
-					g_dtmf_call_state != DTMF_CALL_STATE_NONE)
-					return false;     // display is in use
-
-				// clear the line
+			if (now)
 				memset(g_frame_buffer[line], 0, LCD_WIDTH);
 
-				if (rssi_dBm >= (s9_dBm + 6))
-				{	// S9+XXdB, 1dB increment
-					const char *fmt[] = {"%3d 9+%u  ", "%3d 9+%2u "};
-					const unsigned int s9_dB = ((rssi_dBm - s9_dBm) <= 99) ? rssi_dBm - s9_dBm : 99;
-					sprintf(s, (s9_dB < 10) ? fmt[0] : fmt[1], rssi_dBm, s9_dB);
-				}
-				else
-				{	// S0 ~ S9, 6dB per S-point
-					const unsigned int s_level = (rssi_dBm >= s0_dBm) ? (rssi_dBm - s0_dBm) / 6 : 0;
-					sprintf(s, "%4d S%u ", rssi_dBm, s_level);
-				}
-				UI_PrintStringSmall(s, 2, 0, line);
+			sprintf(str, "r %3d g %3u n %3u", rssi, glitch, noise);
+			UI_PrintStringSmall(str, 2, 0, line);
 
-				draw_bar(g_frame_buffer[line] + bar_x, len, bar_width);
+			if (now)
+				ST7565_BlitFullScreen();
 
-				if (now)
-					ST7565_BlitFullScreen();
+			return true;
 
-				return true;
+		#else
 
+			(void)glitch;  // TODO:
+			(void)noise;
+
+			//const int          s0_dBm       = -127;                  // S0 .. base level
+			const int          s0_dBm       = -147;                  // S0 .. base level
+
+			const int          s9_dBm       = s0_dBm + (6 * 9);      // S9 .. 6dB/S-Point
+			const int          bar_max_dBm  = s9_dBm + 80;           // S9+80dB
+			const int          bar_min_dBm  = s0_dBm + (6 * 0);      // S0
+			//const int          bar_min_dBm  = s0_dBm + (6 * 2);      // S2
+
+			// ************
+
+			const unsigned int txt_width    = 7 * 8;                 // 8 text chars
+			const unsigned int bar_x        = 2 + txt_width + 4;     // X coord of bar graph
+			const unsigned int bar_width    = LCD_WIDTH - 1 - bar_x;
+
+			const int          rssi_dBm     = (rssi / 2) - 160;
+			const int          clamped_dBm  = (rssi_dBm <= bar_min_dBm) ? bar_min_dBm : (rssi_dBm >= bar_max_dBm) ? bar_max_dBm : rssi_dBm;
+			const unsigned int bar_range_dB = bar_max_dBm - bar_min_dBm;
+			const unsigned int len          = ((clamped_dBm - bar_min_dBm) * bar_width) / bar_range_dB;
+
+			#ifdef ENABLE_SINGLE_VFO_CHAN
+				const unsigned int line     = (single_vfo >= 0 && !pan_enabled) ? 6 : 3;
+			#else
+				const unsigned int line     = 3;
 			#endif
-		}
 
-		return false;
+			char               s[16];
+
+			#ifdef ENABLE_KEYLOCK
+				if (g_eeprom.config.setting.key_lock && g_keypad_locked > 0)
+					return false;     // display is in use
+			#endif
+
+			if (g_current_function == FUNCTION_TRANSMIT ||
+				g_current_display_screen != DISPLAY_MAIN ||
+				g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+				return false;     // display is in use
+
+			// clear the line
+			memset(g_frame_buffer[line], 0, LCD_WIDTH);
+
+			if (rssi_dBm >= (s9_dBm + 6))
+			{	// S9+XXdB, 1dB increment
+				const char *fmt[] = {"%3d 9+%u  ", "%3d 9+%2u "};
+				const unsigned int s9_dB = ((rssi_dBm - s9_dBm) <= 99) ? rssi_dBm - s9_dBm : 99;
+				sprintf(s, (s9_dB < 10) ? fmt[0] : fmt[1], rssi_dBm, s9_dB);
+			}
+			else
+			{	// S0 ~ S9, 6dB per S-point
+				const unsigned int s_level = (rssi_dBm >= s0_dBm) ? (rssi_dBm - s0_dBm) / 6 : 0;
+				sprintf(s, "%4d S%u ", rssi_dBm, s_level);
+			}
+			UI_PrintStringSmall(s, 2, 0, line);
+
+			draw_bar(g_frame_buffer[line] + bar_x, len, bar_width);
+
+			if (now)
+				ST7565_BlitFullScreen();
+
+			return true;
+
+		#endif
 	}
-#endif
+
+	return false;
+}
 
 void UI_update_rssi(const int rssi, const unsigned int glitch, const unsigned int noise, const unsigned int vfo)
 {
-	#ifdef ENABLE_RX_SIGNAL_BAR
+	(void)glitch;
+	(void)noise;
 
-		if (g_center_line == CENTER_LINE_RSSI)
-		{	// large RSSI dBm, S-point, bar level
+	if (g_center_line == CENTER_LINE_RSSI)
+	{	// large RSSI dBm, S-point, bar level
 
-			const int rssi_level = (g_tx_vfo->channel_attributes.band < 3) ? rssi + rssi_offset_band_123 : rssi + rssi_offset_band_4567;
+		const int rssi_level = (g_tx_vfo->channel_attributes.band < 3) ? rssi + rssi_offset_band_123 : rssi + rssi_offset_band_4567;
 
-			//if (g_current_function == FUNCTION_RECEIVE && g_squelch_open)
-			if (g_current_function == FUNCTION_RECEIVE)
-				UI_DisplayRSSIBar(rssi_level, glitch, noise, true);
-		}
+		//if (g_current_function == FUNCTION_RECEIVE && g_squelch_open)
+		if (g_current_function == FUNCTION_RECEIVE)
+			UI_DisplayRSSIBar(rssi_level, glitch, noise, true);
+	}
 
-	#else
-		(void)glitch;
-		(void)noise;
+	#ifdef ENABLE_SINGLE_VFO_CHAN
+		if (single_vfo >= 0 && !pan_enabled)
+			return;
 	#endif
 
 	{	// original little RSSI bars
@@ -507,101 +513,261 @@ void big_freq(const uint32_t frequency, const unsigned int x, const unsigned int
 	}
 #endif
 
+void UI_DisplayCenterLine(void)
+{
+//	const bool rx = (g_current_function == FUNCTION_RECEIVE && g_squelch_open) ? true : false;
+	const bool rx = (g_current_function == FUNCTION_RECEIVE) ? true : false;
+
+	#ifdef ENABLE_SINGLE_VFO_CHAN
+		const unsigned int line = (single_vfo >= 0 && !pan_enabled) ? 6 : 3;
+	#else
+		const unsigned int line = 3;
+	#endif
+
+	(void)rx;
+	(void)line;
+
+	if (g_center_line != CENTER_LINE_NONE ||
+	    g_current_display_screen != DISPLAY_MAIN ||
+		g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+	{
+		return;
+	}
+
+	// we're free to use the middle line
+
+	#ifdef ENABLE_TX_AUDIO_BAR
+		// show the TX audio level
+		if (UI_DisplayAudioBar(false))
+		{
+			g_center_line = CENTER_LINE_AUDIO_BAR;
+		}
+		else
+	#endif
+
+	#ifdef ENABLE_MDC1200
+		if (mdc1200_rx_ready_tick_500ms > 0)
+		{
+			g_center_line = CENTER_LINE_MDC1200;
+			#ifdef ENABLE_MDC1200_SHOW_OP_ARG
+				sprintf(str, "MDC1200 %02X %02X %04X", mdc1200_op, mdc1200_arg, mdc1200_unit_id);
+			#else
+				sprintf(str, "MDC1200 ID %04X", mdc1200_unit_id);
+			#endif
+			#ifdef ENABLE_SMALL_BOLD
+				UI_PrintStringSmallBold(str, 2, 0, line);
+			#else
+				UI_PrintStringSmall(str, 2, 0, line);
+			#endif
+		}
+		else
+	#endif
+
+	#if defined(ENABLE_AM_FIX) && defined(ENABLE_AM_FIX_SHOW_DATA)
+		// show the AM-FIX debug data
+		if (rx && g_vfo_info[g_rx_vfo_num].mod_mode != MOD_MODE_FM && g_eeprom.config.setting.am_fix)
+		{
+			g_center_line = CENTER_LINE_AM_FIX_DATA;
+			AM_fix_print_data(g_rx_vfo_num, str);
+			UI_PrintStringSmall(str, 2, 0, line);
+		}
+		else
+	#endif
+
+	// show the RX RSSI dBm, S-point and signal strength bar graph
+	if (rx && g_eeprom.config.setting.enable_rssi_bar)
+	{
+		const int rssi_level = (g_tx_vfo->channel_attributes.band < 3) ? g_current_rssi[g_rx_vfo_num] + rssi_offset_band_123 : g_current_rssi[g_rx_vfo_num] + rssi_offset_band_4567;
+		g_center_line = CENTER_LINE_RSSI;
+		UI_DisplayRSSIBar(rssi_level, g_current_glitch[g_rx_vfo_num], g_current_noise[g_rx_vfo_num], false);
+	}
+	else
+
+	if (rx || g_current_function == FUNCTION_FOREGROUND || g_current_function == FUNCTION_POWER_SAVE)
+	{
+		#ifdef ENABLE_DTMF_LIVE_DECODER
+			#if 1
+				if (g_eeprom.config.setting.dtmf_live_decoder && g_dtmf_rx_live[0] != 0)
+				{	// show live DTMF decode
+					const unsigned int len = strlen(g_dtmf_rx_live);
+					const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
+
+					if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+						return;
+
+					g_center_line = CENTER_LINE_DTMF_DEC;
+
+					strcpy(str, "DTMF ");
+					strcat(str, g_dtmf_rx_live + idx);
+					UI_PrintStringSmall(str, 2, 0, line);
+				}
+			#else
+				if (g_eeprom.config.setting.dtmf_live_decoder && g_dtmf_rx_index > 0)
+				{	// show live DTMF decode
+					const unsigned int len = g_dtmf_rx_index;
+					const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
+
+					if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+						return;
+
+					g_center_line = CENTER_LINE_DTMF_DEC;
+
+					strcpy(str, "DTMF ");
+					strcat(str, g_dtmf_rx + idx);
+					UI_PrintStringSmall(str, 2, 0, line);
+				}
+			#endif
+		#endif
+
+		#ifdef ENABLE_SHOW_CHARGE_LEVEL
+			else
+			if (g_charging_with_type_c)
+			{	// show the battery charge state
+				if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+					return;
+
+				g_center_line = CENTER_LINE_CHARGE_DATA;
+
+				sprintf(str, "Charge %u.%02uV %u%%",
+					g_battery_voltage_average / 100, g_battery_voltage_average % 100,
+					BATTERY_VoltsToPercent(g_battery_voltage_average));
+				UI_PrintStringSmall(str, 2, 0, line);
+			}
+		#endif
+	}
+}
+
 const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALARM", "VOLT HIGH"};
 
 #ifdef ENABLE_SINGLE_VFO_CHAN
 	void UI_DisplayMainSingle(void)
 	{
-		const int          vfo_num   = g_eeprom.config.setting.tx_vfo_num;
-		const unsigned int scrn_chan = g_eeprom.config.setting.indices.vfo[vfo_num].screen;
-		const unsigned int state     = g_vfo_state[vfo_num];
-		uint8_t           *p_line1   = g_frame_buffer[1];
+		const int          vfo_num    = g_eeprom.config.setting.tx_vfo_num;
+		const unsigned int scrn_chan  = g_eeprom.config.setting.indices.vfo[vfo_num].screen;
+		const unsigned int state      = g_vfo_state[vfo_num];
+		bool               tx_allowed = false;
+		uint8_t           *p_line1    = g_frame_buffer[1];
 		char               str[22];
-
-		// TODO: single VFO mode
 
 		#ifdef ENABLE_ALARM
 			if (g_current_function == FUNCTION_TRANSMIT && g_alarm_state == ALARM_STATE_ALARM)
 				state = VFO_STATE_ALARM;
 		#endif
 
-		{
+		#ifdef ENABLE_TX_WHEN_AM
+			if (state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM)
+				if (FREQUENCY_tx_freq_check(g_vfo_info[vfo_num].p_tx->frequency) == 0)
+					tx_allowed = true;
+		#else
+			if ((state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM) && g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM) // TX allowed only when FM
+				if (FREQUENCY_tx_freq_check(g_vfo_info[vfo_num].p_tx->frequency) == 0)
+					tx_allowed = true;
+		#endif
+
+		// ********************
+
+		{	// top line
+
 			unsigned int y = 0;
-			unsigned int x = 2;
+			unsigned int x = 0;
 
-			sprintf(str, "VFO-%d", 1 + vfo_num);
-			UI_PrintStringSmall(str, x, 0, y);
-
-			x += 7 * 6;
-
-			if (g_current_function == FUNCTION_TRANSMIT || state != VFO_STATE_NORMAL)
-			{	// transmitting
-				if (state != VFO_STATE_NORMAL)
+			#ifdef ENABLE_KILL_REVIVE
+				if (g_eeprom.config.setting.radio_disabled)
 				{
-					if (state < ARRAY_SIZE(state_list))
-					{
-						#ifdef ENABLE_SMALL_BOLD
-							UI_PrintStringSmallBold(state_list[state], x, 0, y);
-						#else
-							UI_PrintStringSmall(state_list[state], x, 0, y);
-						#endif
-					}
-				}
-				else
-				{	// show the TX symbol
 					#ifdef ENABLE_SMALL_BOLD
-						UI_PrintStringSmallBold("TX", x, 0, y);
+						UI_PrintStringSmallBold("DISABLED", x + 10, 0, y);
 					#else
-						UI_PrintStringSmall("TX", x, 0, y);
+						UI_PrintStringSmall("DISABLED", x + 10, 0, y);
 					#endif
 				}
-			}
-			else
-			if (g_current_function == FUNCTION_RECEIVE && g_squelch_open)
-			{	// receiving .. show the RX symbol
-				#ifdef ENABLE_SMALL_BOLD
-					UI_PrintStringSmallBold("RX", x, 0, y);
-				#else
-					UI_PrintStringSmall("RX", x, 0, y);
-				#endif
-			}
-
-			if (state == VFO_STATE_NORMAL)
-			{
-				x += 7 * 5;
-				//x = LCD_WIDTH - 1 - (7 * 4);
-
-				if (scrn_chan <= USER_CHANNEL_LAST)
-				{	// channel mode
-					const bool inputting = (g_input_box_index == 0 || g_eeprom.config.setting.tx_vfo_num != vfo_num) ? false : true;
-					if (!inputting)
-						NUMBER_ToDigits(1 + scrn_chan, str);  // show the memory channel number
-					else
-						memcpy(str + 5, g_input_box, 3);      // show the input text
-					UI_PrintStringSmall("M", x, 0, y);
-					UI_Displaysmall_digits(3, str + 5, x + 7, y, inputting);
-				}
 				else
-				if (IS_FREQ_CHANNEL(scrn_chan))
-				{	// frequency mode
-					// show the frequency band number
-					sprintf(str, "F%u", 1 + scrn_chan - FREQ_CHANNEL_FIRST);
+			#endif
+			{
+				{	// VFO number
+					sprintf(str, "VFO%d", 1 + vfo_num);
 					UI_PrintStringSmall(str, x, 0, y);
 				}
-				#ifdef ENABLE_NOAA
+
+				x += 7 * 5;
+
+				if (state == VFO_STATE_NORMAL)
+				{	// frequency band/channel number
+
+					if (scrn_chan <= USER_CHANNEL_LAST)
+					{	// channel mode
+						const bool inputting = (g_input_box_index == 0 || g_eeprom.config.setting.tx_vfo_num != vfo_num) ? false : true;
+						if (!inputting)
+							NUMBER_ToDigits(1 + scrn_chan, str);  // show the memory channel number
+						else
+							memcpy(str + 5, g_input_box, 3);      // show the input text
+						UI_PrintStringSmall("M", x, 0, y);
+						UI_Displaysmall_digits(3, str + 5, x + 7, y, inputting);
+					}
 					else
-					{
-						if (g_input_box_index == 0 || g_eeprom.config.setting.tx_vfo_num != vfo_num)
-						{	// channel number
-							sprintf(str, "N%u", 1 + scrn_chan - NOAA_CHANNEL_FIRST);
+					if (IS_FREQ_CHANNEL(scrn_chan))
+					{	// frequency mode
+						sprintf(str, "F%u", 1 + scrn_chan - FREQ_CHANNEL_FIRST);
+						UI_PrintStringSmall(str, x, 0, y);
+					}
+					#ifdef ENABLE_NOAA
+						else
+						{
+							if (g_input_box_index == 0 || g_eeprom.config.setting.tx_vfo_num != vfo_num)
+							{	// channel number
+								sprintf(str, "N%u", 1 + scrn_chan - NOAA_CHANNEL_FIRST);
+							}
+							else
+							{	// user entering channel number
+								sprintf(str, "N%u%u", '0' + g_input_box[0], '0' + g_input_box[1]);
+							}
+							UI_PrintStringSmall(str, x, 0, y);
+						}
+					#endif
+
+					x += 7 * 5;
+
+					{	// RX or TX or state message
+						str[0] = 0;
+						if (g_current_function == FUNCTION_TRANSMIT)
+							strcpy(str, "TX");
+						else
+						if (g_current_function == FUNCTION_RECEIVE && g_squelch_open)
+							strcpy(str, "RX");
+						#ifdef ENABLE_SMALL_BOLD
+							UI_PrintStringSmallBold(str, x, 0, y);
+						#else
+							UI_PrintStringSmall(str, x, 0, y);
+						#endif
+					}
+
+					x += 7 * 3;
+
+					#if 1  // not quite enough room to fit this in :(
+					{	// step size
+						const uint32_t step = g_vfo_info[vfo_num].step_freq * 10;
+						if (step < 1000)
+						{	// Hz
+							sprintf(str, "%u", step);
 						}
 						else
-						{	// user entering channel number
-							sprintf(str, "N%u%u", '0' + g_input_box[0], '0' + g_input_box[1]);
+						{	// kHz
+							sprintf(str, "%u.%03u", step / 1000, step % 1000);
+							NUMBER_trim_trailing_zeros(str);
+							strcat(str, "k");
 						}
 						UI_PrintStringSmall(str, x, 0, y);
 					}
-				#endif
+					#endif
+				}
+				else
+				{
+					#ifdef ENABLE_SMALL_BOLD
+						UI_PrintStringSmallBold(state_list[state], x, 0, y);
+					#else
+						UI_PrintStringSmall(state_list[state], x, 0, y);
+					#endif
+				}
+
 			}
 		}
 
@@ -609,15 +775,19 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 
 		{
 			unsigned int y = 1;
-			unsigned int x = 2;
+			unsigned int x = 6;
 
 			if (g_input_box_index > 0 && IS_FREQ_CHANNEL(scrn_chan) && g_eeprom.config.setting.tx_vfo_num == vfo_num)
 			{	// user is entering a frequency
-				UI_DisplayFrequency(g_input_box, x + 5, y, true, 8);
+				UI_DisplayFrequency(g_input_box, x, y, true, 8);
 			}
 			else
 			{
-				const uint32_t frequency = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_rx->frequency : g_vfo_info[vfo_num].p_tx->frequency;
+				const uint32_t frequency = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_tx->frequency : g_vfo_info[vfo_num].p_rx->frequency;
+
+				#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+//					UART_printf("%u.%05u MHz\n", frequency / 100000, frequency % 100000);
+				#endif
 
 				if (scrn_chan <= USER_CHANNEL_LAST)
 				{	// a user channel
@@ -626,16 +796,14 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 					SETTINGS_fetch_channel_name(str, scrn_chan);
 					if (str[0] == 0)
 						sprintf(str, "CH %u", scrn_chan);
-					UI_PrintString(str, x + 5, 0, y, 8);
-
-					//x = 2;
+					UI_PrintString(str, x, 0, y, 8);
 
 					// frequency
 					sprintf(str, "%u.%05u", frequency / 100000, frequency % 100000);
 					#ifdef ENABLE_TRIM_TRAILING_ZEROS
 						NUMBER_trim_trailing_zeros(str);
 					#endif
-					UI_PrintString(str, x + 5, 0, y + 2, 8);
+					UI_PrintString(str, x, 0, y + 2, 8);
 				}
 				else
 //				if (IS_FREQ_CHANNEL(scrn_chan))
@@ -676,12 +844,13 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 							else
 						#endif
 */						{	// show the frequency in the main font
-							UI_PrintString(str, x + 5, 0, y, 8);
+//							UI_PrintString(str, x, 0, y, 8);
+							UI_PrintString(str, x, 0, y + 1, 8);
 						}
 					#endif
 				}
 
-				// show channel symbols
+				// channel symbols
 
 				if (scrn_chan <= USER_CHANNEL_LAST)
 				//if (IS_NOT_NOAA_CHANNEL(scrn_chan))
@@ -698,11 +867,6 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 					//x += sizeof(BITMAP_SCANLIST2);
 				}
 
-				#ifdef ENABLE_BIG_FREQ
-
-					// no room for these symbols
-
-				#else
 				{
 					#ifdef ENABLE_SHOW_FREQS_CHAN
 						strcpy(str, "  ");
@@ -729,7 +893,14 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 						#endif
 
 						if (is_freq_chan && freq_in_channel <= USER_CHANNEL_LAST)
-							str[1] = 'F';  // this VFO frequency is also found in a channel
+						{	// this VFO frequency is also found in a channel
+							str[1] = 'F';
+
+
+							// TODO: show the channel name this frequency is found in
+
+
+						}
 
 						if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
 							str[2] = 'C';  // compander is enabled
@@ -737,109 +908,99 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 						UI_PrintStringSmall(str, LCD_WIDTH - (7 * 3), 0, y + 1);
 					#endif
 				}
-				#endif
-
 			}
 
 			y += 2;
-			x = LCD_WIDTH - (7 * 6);
+			x = LCD_WIDTH - (7 * 6) - 4;
 
-			// show the audio scramble symbol
+			// audio scramble symbol
 			if (g_vfo_info[vfo_num].channel.scrambler > 0 && g_eeprom.config.setting.enable_scrambler)
 				UI_PrintStringSmall("SCR", x, 0, y);
+			x += (7 * 3) + 4;
 
-			{	// show the modulation mode
+			{	// bandwidth & modulation mode
+				const char  bw_list[]   = "WNn ";
 				const char *mode_list[] = {"FM", "AM", "SB", ""};
-				const unsigned int mode = g_vfo_info[vfo_num].channel.mod_mode;
-				if (mode < ARRAY_SIZE(mode_list))
-					strcpy(str, mode_list[mode]);
-				UI_PrintStringSmall(str, x + (7 * 4), 0, y);
+				str[0] = bw_list[g_vfo_info[vfo_num].channel.channel_bandwidth];
+				strcpy(str + 1, mode_list[g_vfo_info[vfo_num].channel.mod_mode]);
+				UI_PrintStringSmall(str, x, 0, y);
+				//x += 7 * 3;
 			}
 
 			y++;
 			x = LCD_WIDTH - (7 * 5);
 
-			// show the CTCSS / CDCSS code
-			str[0] = '\0';
-			if (g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM)
-			{	// show the CTCSS/CDCSS symbol
-				const freq_config_t *pConfig   = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_tx : g_vfo_info[vfo_num].p_rx;
-				const unsigned int   code_type = pConfig->code_type;
-				unsigned int         code      = pConfig->code;
-				switch (code_type)
-				{
-					case CODE_TYPE_NONE:
-						str[0] = 0;
-						break;
-					case CODE_TYPE_CONTINUOUS_TONE:
-						sprintf(str, "%3u.%u", CTCSS_TONE_LIST[code] / 10, CTCSS_TONE_LIST[code] % 10);
-						break;
-					case CODE_TYPE_DIGITAL:
-					case CODE_TYPE_REVERSE_DIGITAL:
-						sprintf(str, "D%03o%c", DCS_CODE_LIST[code], (code_type == CODE_TYPE_DIGITAL) ? 'N' : 'I');
-						break;
+			{	// CTCSS/CDCSS code
+				str[0] = 0;
+				if (g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM)
+				{	// show the CTCSS/CDCSS symbol
+					const freq_config_t *pConfig   = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_tx : g_vfo_info[vfo_num].p_rx;
+					const unsigned int   code_type = pConfig->code_type;
+					unsigned int         code      = pConfig->code;
+					switch (code_type)
+					{
+						case CODE_TYPE_NONE:
+							//str[0] = 0;
+							break;
+						case CODE_TYPE_CONTINUOUS_TONE:
+							sprintf(str, "%3u.%u", CTCSS_TONE_LIST[code] / 10, CTCSS_TONE_LIST[code] % 10);
+							break;
+						case CODE_TYPE_DIGITAL:
+						case CODE_TYPE_REVERSE_DIGITAL:
+							sprintf(str, "D%03o%c", DCS_CODE_LIST[code], (code_type == CODE_TYPE_DIGITAL) ? 'N' : 'I');
+							break;
+					}
 				}
+				UI_PrintStringSmall(str, x, 0, y);
 			}
-			UI_PrintStringSmall(str, x, 0, y);
 
 			// ***************************************
 
-			x = 2;
+			x = 0;
 			y++;
 
-			#ifdef ENABLE_TX_WHEN_AM
-				if (state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM)
-			#else
-				if ((state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM) && g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM) // TX allowed only when FM
-			#endif
-			{
-				if (FREQUENCY_tx_freq_check(g_vfo_info[vfo_num].p_tx->frequency) == 0)
-				{	// show the TX power
-					const char *pwr_list[] = {"LOW", "MID", "HIGH", ""};
-					const unsigned int i = g_vfo_info[vfo_num].channel.tx_power;
-					if (i < OUTPUT_POWER_USER)
-						strcpy(str, pwr_list[i]);
-					else
-						sprintf(str, "U%02u", g_tx_vfo->channel.tx_power_user);
-					UI_PrintStringSmall(str, x, 0, y);
-
-					if (g_vfo_info[vfo_num].freq_config_rx.frequency != g_vfo_info[vfo_num].freq_config_tx.frequency)
-					{	// show the TX offset symbol
-						const char *dir_list[] = {"", "+", "-"};
-						const unsigned int i = g_vfo_info[vfo_num].channel.tx_offset_dir;
-						UI_PrintStringSmall(dir_list[i], x + (7 * 5), 0, y);
-					}
-				}
+			if (tx_allowed)
+			{	// TX power
+				const char *pwr_list[] = {"LOW", "MID", "HIGH", "U"};
+				const unsigned int i = g_vfo_info[vfo_num].channel.tx_power;
+				strcpy(str, pwr_list[i]);
+				if (i == OUTPUT_POWER_USER)
+					sprintf(str + strlen(str), "%03u", g_tx_vfo->channel.tx_power_user);
+				UI_PrintStringSmall(str, x, 0, y);
 			}
+			x += 7 * 5;
 
-			x += 7 * 7;
-
-			// show the TX/RX reverse symbol
+			// reverse offset symbol
 			if (g_vfo_info[vfo_num].channel.frequency_reverse)
 				UI_PrintStringSmall("R", x, 0, y);
+			x += 7 * 1;
 
-			x += 7 * 2;
+			if (tx_allowed && g_vfo_info[vfo_num].freq_config_rx.frequency != g_vfo_info[vfo_num].freq_config_tx.frequency)
+			{	// offset symbol
+				const char *dir_list[] = {"", "+", "-"};
+				const unsigned int i = g_vfo_info[vfo_num].channel.tx_offset_dir;
+				UI_PrintStringSmall(dir_list[i], x, 0, y);
+			}
+			x += 7 * 1;
 
-			// show the narrow band symbol
-			strcpy(str, " ");
-			if (g_vfo_info[vfo_num].channel.channel_bandwidth == BANDWIDTH_WIDE)
-				str[0] = 'W';
-			else
-			if (g_vfo_info[vfo_num].channel.channel_bandwidth == BANDWIDTH_NARROW)
-				str[0] = 'N';
+			if (g_vfo_info[vfo_num].channel.tx_offset_dir != TX_OFFSET_FREQ_DIR_OFF)
+			{	// TX/RX offset
+				const uint32_t ofs = g_vfo_info[vfo_num].channel.tx_offset;
+				sprintf(str, "%u.%05u", ofs / 100000, ofs % 100000);
+				NUMBER_trim_trailing_zeros(str);
+				UI_PrintStringSmall(str, x, 0, y);
+			}
+			x += 7 * 7;
+
+			// DTMF decoding symbol
+			str[0] = 0;
+			if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable)
+				strcpy(str, "DTMF");
 			UI_PrintStringSmall(str, x, 0, y);
-
-			x += 7 * 2;
-
-			// show the DTMF decoding symbol
-			#ifdef ENABLE_KILL_REVIVE
-				if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable || g_eeprom.config.setting.radio_disabled)
-					UI_PrintStringSmall("DTMF", x, 0, y);
-			#else
-				if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable)
-					UI_PrintStringSmall("DTMF", x, 0, y);
-			#endif
+			//x += 7 * 5;
 		}
+
+		UI_DisplayCenterLine();
 
 		ST7565_BlitFullScreen();
 	}
@@ -863,7 +1024,9 @@ void UI_DisplayMain(void)
 	single_vfo  = -1;
 
 	if (g_eeprom.config.setting.dual_watch == DUAL_WATCH_OFF && g_eeprom.config.setting.cross_vfo == CROSS_BAND_OFF)
+	{
 		single_vfo = main_vfo_num;
+	}
 	else
 	if (g_eeprom.config.setting.dual_watch != DUAL_WATCH_OFF && g_rx_vfo_is_active)
 		current_vfo_num = g_rx_vfo_num;
@@ -904,12 +1067,20 @@ void UI_DisplayMain(void)
 		#endif
 	#endif
 
-	#ifdef ENABLE_SINGLE_VFO_CHAN
-		if (single_vfo >= 0 && !pan_enabled)
-		{
-			UI_DisplayMainSingle();
-			return;
-		}
+	#if ENABLE_SINGLE_VFO_CHAN
+		if (g_dtmf_input_mode)
+			single_vfo = -1;
+
+		#ifdef ENABLE_PANADAPTER
+			if (!pan_enabled)
+		#endif
+			{
+				if (single_vfo >= 0)
+				{
+					UI_DisplayMainSingle();
+					return;
+				}
+			}
 	#endif
 
 	for (vfo_num = 0; vfo_num < 2; vfo_num++)
@@ -953,7 +1124,7 @@ void UI_DisplayMain(void)
 				}
 				else
 				{
-					sprintf(str, ">%s", g_dtmf_input_box);
+					sprintf(str, "DTMF entry");
 				}
 				str[16] = 0;
 				UI_PrintString(str, 2, 0, 0 + (vfo_num * 3), 8);
@@ -980,6 +1151,10 @@ void UI_DisplayMain(void)
 					{
 						sprintf(str, ">%s", g_dtmf_string);
 					}
+				}
+				else
+				{
+					sprintf(str, ">%s", g_dtmf_input_box);
 				}
 				str[16] = 0;
 				UI_PrintString(str, 2, 0, 2 + (vfo_num * 3), 8);
@@ -1397,116 +1572,7 @@ void UI_DisplayMain(void)
 
 	// *************************************************
 
-	if (g_center_line == CENTER_LINE_NONE &&
-		g_current_display_screen == DISPLAY_MAIN &&
-		g_dtmf_call_state == DTMF_CALL_STATE_NONE)
-	{	// we're free to use the middle line
-
-//		const bool rx = (g_current_function == FUNCTION_RECEIVE && g_squelch_open) ? true : false;
-		const bool rx = (g_current_function == FUNCTION_RECEIVE) ? true : false;
-
-		#ifdef ENABLE_TX_AUDIO_BAR
-			// show the TX audio level
-			if (UI_DisplayAudioBar(false))
-			{
-				g_center_line = CENTER_LINE_AUDIO_BAR;
-			}
-			else
-		#endif
-
-		#ifdef ENABLE_MDC1200
-			if (mdc1200_rx_ready_tick_500ms > 0)
-			{
-				g_center_line = CENTER_LINE_MDC1200;
-				#ifdef ENABLE_MDC1200_SHOW_OP_ARG
-					sprintf(str, "MDC1200 %02X %02X %04X", mdc1200_op, mdc1200_arg, mdc1200_unit_id);
-				#else
-					sprintf(str, "MDC1200 ID %04X", mdc1200_unit_id);
-				#endif
-				#ifdef ENABLE_SMALL_BOLD
-					UI_PrintStringSmallBold(str, 2, 0, 3);
-				#else
-					UI_PrintStringSmall(str, 2, 0, 3);
-				#endif
-			}
-			else
-		#endif
-
-		#if defined(ENABLE_AM_FIX) && defined(ENABLE_AM_FIX_SHOW_DATA)
-			// show the AM-FIX debug data
-			if (rx && g_vfo_info[g_rx_vfo_num].mod_mode != MOD_MODE_FM && g_eeprom.config.setting.am_fix)
-			{
-				g_center_line = CENTER_LINE_AM_FIX_DATA;
-				AM_fix_print_data(g_rx_vfo_num, str);
-				UI_PrintStringSmall(str, 2, 0, 3);
-			}
-			else
-		#endif
-
-		#ifdef ENABLE_RX_SIGNAL_BAR
-			// show the RX RSSI dBm, S-point and signal strength bar graph
-			if (rx && g_eeprom.config.setting.enable_rssi_bar)
-			{
-				const int rssi_level = (g_tx_vfo->channel_attributes.band < 3) ? g_current_rssi[g_rx_vfo_num] + rssi_offset_band_123 : g_current_rssi[g_rx_vfo_num] + rssi_offset_band_4567;
-				g_center_line = CENTER_LINE_RSSI;
-				UI_DisplayRSSIBar(rssi_level, g_current_glitch[g_rx_vfo_num], g_current_noise[g_rx_vfo_num], false);
-			}
-			else
-		#endif
-
-		if (rx || g_current_function == FUNCTION_FOREGROUND || g_current_function == FUNCTION_POWER_SAVE)
-		{
-			#ifdef ENABLE_DTMF_LIVE_DECODER
-				#if 1
-					if (g_eeprom.config.setting.dtmf_live_decoder && g_dtmf_rx_live[0] != 0)
-					{	// show live DTMF decode
-						const unsigned int len = strlen(g_dtmf_rx_live);
-						const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
-
-						if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
-							return;
-
-						g_center_line = CENTER_LINE_DTMF_DEC;
-
-						strcpy(str, "DTMF ");
-						strcat(str, g_dtmf_rx_live + idx);
-						UI_PrintStringSmall(str, 2, 0, 3);
-					}
-				#else
-					if (g_eeprom.config.setting.dtmf_live_decoder && g_dtmf_rx_index > 0)
-					{	// show live DTMF decode
-						const unsigned int len = g_dtmf_rx_index;
-						const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
-
-						if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
-							return;
-
-						g_center_line = CENTER_LINE_DTMF_DEC;
-
-						strcpy(str, "DTMF ");
-						strcat(str, g_dtmf_rx + idx);
-						UI_PrintStringSmall(str, 2, 0, 3);
-					}
-				#endif
-			#endif
-
-			#ifdef ENABLE_SHOW_CHARGE_LEVEL
-				else
-				if (g_charging_with_type_c)
-				{	// show the battery charge state
-					if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
-						return;
-
-					g_center_line = CENTER_LINE_CHARGE_DATA;
-
-					sprintf(str, "Charge %u.%02uV %u%%",
-						g_battery_voltage_average / 100, g_battery_voltage_average % 100,
-						BATTERY_VoltsToPercent(g_battery_voltage_average));
-					UI_PrintStringSmall(str, 2, 0, 3);
-				}
-			#endif
-		}
-	}
+	UI_DisplayCenterLine();
 
 	#ifdef ENABLE_PANADAPTER
 		UI_DisplayMain_pan(false);

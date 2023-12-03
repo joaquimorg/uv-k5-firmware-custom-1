@@ -36,23 +36,29 @@ ENABLE_TX1750                    := 0
 ENABLE_MDC1200                   := 0
 ENABLE_MDC1200_SHOW_OP_ARG       := 1
 ENABLE_MDC1200_SIDE_BEEP         := 1
+#
 ENABLE_PWRON_PASSWORD            := 0
 ENABLE_RESET_AES_KEY             := 0
 ENABLE_BIG_FREQ                  := 0
 ENABLE_DTMF_LIVE_DECODER         := 0
 ENABLE_SHOW_FREQS_CHAN           := 0
 # smaa bolf 580 B
-ENABLE_SMALL_BOLD                := 1
+ENABLE_SMALL_BOLD                := 0
 # smallest font 2 kB
 ENABLE_SMALLEST_FONT             := 1
 # trim trailing 44 B
 ENABLE_TRIM_TRAILING_ZEROS       := 1
 ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
-# Freq calibration 188 B
+# Frequency calibration 188 B
 ENABLE_F_CAL_MENU                := 0
+<<<<<<< HEAD
 ENABLE_FM_DEV_CAL_MENU           := 1
 ENABLE_TX_UNLOCK_MENU            := 1
+=======
+ENABLE_FM_DEV_CAL_MENU           := 0
+ENABLE_TX_UNLOCK_MENU            := 0
+>>>>>>> b9cc34f599fab1718a62e7f78bea0ecb4a46bf95
 #ENABLE_TX_POWER_CAL_MENU        := 0
 ENABLE_TX_POWER_FIX              := 1
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 1
@@ -65,8 +71,10 @@ ENABLE_REVERSE_BAT_SYMBOL        := 0
 ENABLE_FREQ_SEARCH_LNA           := 0
 ENABLE_FREQ_SEARCH_TIMEOUT       := 0
 ENABLE_CODE_SEARCH_TIMEOUT       := 0
-ENABLE_SCAN_IGNORE_LIST          := 1
-ENABLE_SCAN_RANGES               := 1
+# scan ignore list 740 B
+ENABLE_SCAN_IGNORE_LIST          := 0
+# scan ranges 400 B
+ENABLE_SCAN_RANGES               := 0
 # Kill and Revive 400 B
 ENABLE_KILL_REVIVE               := 0
 # AM Fix 800 B
@@ -75,18 +83,17 @@ ENABLE_AM_FIX_SHOW_DATA          := 0
 ENABLE_SQUELCH_MORE_SENSITIVE    := 1
 ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 0
 ENABLE_FASTER_CHANNEL_SCAN       := 1
-ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 0
-# Rx Signal Bar 400 B
-ENABLE_RX_SIGNAL_BAR             := 1
+ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 1
 # Tx Audio Bar 300 B
 ENABLE_TX_AUDIO_BAR              := 1
 # Side Button Menu 300 B
 ENABLE_SIDE_BUTT_MENU            := 0
 # Key Lock 400 B
 ENABLE_KEYLOCK                   := 0
+# panadapter 1.5kB
 ENABLE_PANADAPTER                := 1
-ENABLE_PANADAPTER_PEAK_FREQ      := 1
-# single VFO 1.4 kB
+ENABLE_PANADAPTER_PEAK_FREQ      := 0
+# single VFO 1.5kB
 ENABLE_SINGLE_VFO_CHAN           := 1
 
 #############################################################
@@ -461,9 +468,6 @@ ifeq ($(ENABLE_FASTER_CHANNEL_SCAN),1)
 endif
 ifeq ($(ENABLE_backlight_ON_RX),1)
 	CFLAGS  += -DENABLE_backlight_ON_RX
-endif
-ifeq ($(ENABLE_RX_SIGNAL_BAR),1)
-	CFLAGS  += -DENABLE_RX_SIGNAL_BAR
 endif
 ifeq ($(ENABLE_TX_AUDIO_BAR),1)
 	CFLAGS  += -DENABLE_TX_AUDIO_BAR

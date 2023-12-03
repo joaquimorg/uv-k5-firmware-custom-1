@@ -2085,18 +2085,15 @@ void APP_time_slice_500ms(void)
 	#ifdef ENABLE_DTMF_LIVE_DECODER
 		if (g_dtmf_rx_live_timeout > 0)
 		{
-			#ifdef ENABLE_RX_SIGNAL_BAR
-				if (g_center_line == CENTER_LINE_DTMF_DEC ||
-					g_center_line == CENTER_LINE_NONE)  // wait till the center line is free for us to use before timing out
-			#endif
+			if (g_center_line == CENTER_LINE_DTMF_DEC ||
+				g_center_line == CENTER_LINE_NONE)  // wait till the center line is free for us to use before timing out
+
+			if (--g_dtmf_rx_live_timeout == 0)
 			{
-				if (--g_dtmf_rx_live_timeout == 0)
+				if (g_dtmf_rx_live[0] != 0)
 				{
-					if (g_dtmf_rx_live[0] != 0)
-					{
-						memset(g_dtmf_rx_live, 0, sizeof(g_dtmf_rx_live));
-						g_update_display   = true;
-					}
+					memset(g_dtmf_rx_live, 0, sizeof(g_dtmf_rx_live));
+					g_update_display   = true;
 				}
 			}
 		}
@@ -2866,7 +2863,7 @@ static void APP_process_key(const key_code_t Key, const bool key_pressed, const 
 					if (g_eeprom.config.setting.repeater_tail_tone_elimination == 0)
 						FUNCTION_Select(FUNCTION_FOREGROUND);
 					else
-						g_rtte_count_down = g_eeprom.config.setting.repeater_tail_tone_elimination * 10;
+						g_rtte_count_down  = g_eeprom.config.setting.repeater_tail_tone_elimination * 10;
 
 					if (Key == KEY_PTT)
 						g_ptt_was_pressed  = true;
@@ -3054,8 +3051,8 @@ Skip:
 
 	if (g_update_menu)
 	{
-		g_update_menu = false;
-		g_menu_tick_10ms   = menu_timeout_500ms;
+		g_update_menu    = false;
+		g_menu_tick_10ms = menu_timeout_500ms;
 
 		MENU_ShowCurrentSetting();
 	}

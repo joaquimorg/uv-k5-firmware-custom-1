@@ -114,7 +114,7 @@ void draw_bar(uint8_t *line, const int len, const int max_width)
 		if (g_dtmf_call_state != DTMF_CALL_STATE_NONE)
 			return false;
 
-		#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+		#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
 			if (g_alarm_state != ALARM_STATE_OFF)
 				return false;
 		#endif
@@ -233,10 +233,15 @@ bool UI_DisplayRSSIBar(const int rssi, const unsigned int glitch, const unsigned
 					return false;     // display is in use
 			#endif
 
-			if (g_current_function == FUNCTION_TRANSMIT ||
-				g_current_display_screen != DISPLAY_MAIN ||
-				g_dtmf_call_state != DTMF_CALL_STATE_NONE)
-				return false;     // display is in use
+			if (
+				#ifdef ENABLE_DTMF_CALLING
+					g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+				#endif
+				g_current_function == FUNCTION_TRANSMIT ||
+				g_current_display_screen != DISPLAY_MAIN)
+			{	// display is in use
+				return false;
+			}
 
 			// clear the line
 			memset(g_frame_buffer[line], 0, LCD_WIDTH);
@@ -419,8 +424,10 @@ void big_freq(const uint32_t frequency, const unsigned int x, const unsigned int
 		     g_reduced_service                         ||
 		     g_current_display_screen != DISPLAY_MAIN  ||
 		     g_current_function == FUNCTION_POWER_SAVE ||
-		     g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
-		     g_dtmf_input_mode                         ||
+			 g_dtmf_input_mode                         ||
+			 #ifdef ENABLE_DTMF_CALLING
+				g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+		     #endif
 		     g_eeprom.config.setting.dual_watch != DUAL_WATCH_OFF)
 		{	// don't draw the panadapter
 			return;
@@ -517,19 +524,22 @@ void UI_DisplayCenterLine(void)
 {
 //	const bool rx = (g_current_function == FUNCTION_RECEIVE && g_squelch_open) ? true : false;
 	const bool rx = (g_current_function == FUNCTION_RECEIVE) ? true : false;
-
 	#ifdef ENABLE_SINGLE_VFO_CHAN
 		const unsigned int line = (single_vfo >= 0 && !pan_enabled) ? 6 : 3;
 	#else
 		const unsigned int line = 3;
 	#endif
+	char str[22];
 
 	(void)rx;
 	(void)line;
+	(void)str;
 
-	if (g_center_line != CENTER_LINE_NONE ||
-	    g_current_display_screen != DISPLAY_MAIN ||
-		g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+	if (
+		#ifdef ENABLE_DTMF_CALLING
+			g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+		#endif
+		g_center_line != CENTER_LINE_NONE || g_current_display_screen != DISPLAY_MAIN)
 	{
 		return;
 	}
@@ -592,8 +602,14 @@ void UI_DisplayCenterLine(void)
 					const unsigned int len = strlen(g_dtmf_rx_live);
 					const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
 
-					if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+					if (
+						#ifdef ENABLE_DTMF_CALLING
+							g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+						#endif
+						g_current_display_screen != DISPLAY_MAIN)
+					{
 						return;
+					}
 
 					g_center_line = CENTER_LINE_DTMF_DEC;
 
@@ -607,8 +623,14 @@ void UI_DisplayCenterLine(void)
 					const unsigned int len = g_dtmf_rx_index;
 					const unsigned int idx = (len > (17 - 5)) ? len - (17 - 5) : 0;  // limit to last 'n' chars
 
-					if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+					if (
+						#ifdef ENABLE_DTMF_CALLING
+							g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+						#endif
+						g_current_display_screen != DISPLAY_MAIN)
+					{
 						return;
+					}
 
 					g_center_line = CENTER_LINE_DTMF_DEC;
 
@@ -623,8 +645,14 @@ void UI_DisplayCenterLine(void)
 			else
 			if (g_charging_with_type_c)
 			{	// show the battery charge state
-				if (g_current_display_screen != DISPLAY_MAIN || g_dtmf_call_state != DTMF_CALL_STATE_NONE)
+				if (
+					#ifdef ENABLE_DTMF_CALLING
+						g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+					#endif
+					g_current_display_screen != DISPLAY_MAIN)
+				{
 					return;
+				}
 
 				g_center_line = CENTER_LINE_CHARGE_DATA;
 
@@ -647,7 +675,13 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 		const unsigned int state      = g_vfo_state[vfo_num];
 		bool               tx_allowed = false;
 		uint8_t           *p_line1    = g_frame_buffer[1];
+		const vfo_info_t  *p_vfo      = &g_vfo_info[vfo_num];
 		char               str[22];
+
+		#ifdef ENABLE_SHOW_FREQ_IN_CHAN
+			const uint8_t freq_in_channel = p_vfo->freq_in_channel;
+			//const uint8_t freq_in_channel = SETTINGS_find_channel(frequency);  // was way to slow
+		#endif
 
 		#ifdef ENABLE_ALARM
 			if (g_current_function == FUNCTION_TRANSMIT && g_alarm_state == ALARM_STATE_ALARM)
@@ -656,11 +690,11 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 
 		#ifdef ENABLE_TX_WHEN_AM
 			if (state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM)
-				if (FREQUENCY_tx_freq_check(g_vfo_info[vfo_num].p_tx->frequency) == 0)
+				if (FREQUENCY_tx_freq_check(p_vfo->p_tx->frequency) == 0)
 					tx_allowed = true;
 		#else
-			if ((state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM) && g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM) // TX allowed only when FM
-				if (FREQUENCY_tx_freq_check(g_vfo_info[vfo_num].p_tx->frequency) == 0)
+			if ((state == VFO_STATE_NORMAL || state == VFO_STATE_ALARM) && p_vfo->channel.mod_mode == MOD_MODE_FM) // TX allowed only when FM
+				if (FREQUENCY_tx_freq_check(p_vfo->p_tx->frequency) == 0)
 					tx_allowed = true;
 		#endif
 
@@ -671,7 +705,7 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 			unsigned int y = 0;
 			unsigned int x = 0;
 
-			#ifdef ENABLE_KILL_REVIVE
+			#ifdef ENABLE_DTMF_KILL_REVIVE
 				if (g_eeprom.config.setting.radio_disabled)
 				{
 					#ifdef ENABLE_SMALL_BOLD
@@ -727,14 +761,30 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 					x += 7 * 5;
 
 					{	// RX or TX or state message
+						#ifdef ENABLE_SMALL_BOLD
+							bool bold = true;
+						#endif
+
 						str[0] = 0;
 						if (g_current_function == FUNCTION_TRANSMIT)
 							strcpy(str, "TX");
 						else
 						if (g_current_function == FUNCTION_RECEIVE && g_squelch_open)
 							strcpy(str, "RX");
+						else
+						{
+							const unsigned int squelch_level = (p_vfo->channel.squelch_level > 0) ? p_vfo->channel.squelch_level : g_eeprom.config.setting.squelch_level;
+							sprintf(str, "Q%u", squelch_level);
+							#ifdef ENABLE_SMALL_BOLD
+								bold = false;
+							#endif
+						}
+
 						#ifdef ENABLE_SMALL_BOLD
-							UI_PrintStringSmallBold(str, x, 0, y);
+							if (bold)
+								UI_PrintStringSmallBold(str, x, 0, y);
+							else
+								UI_PrintStringSmall(str, x, 0, y);
 						#else
 							UI_PrintStringSmall(str, x, 0, y);
 						#endif
@@ -742,9 +792,8 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 
 					x += 7 * 3;
 
-					#if 1  // not quite enough room to fit this in :(
 					{	// step size
-						const uint32_t step = g_vfo_info[vfo_num].step_freq * 10;
+						const uint32_t step = p_vfo->step_freq * 10;
 						if (step < 1000)
 						{	// Hz
 							sprintf(str, "%u", step);
@@ -757,7 +806,6 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 						}
 						UI_PrintStringSmall(str, x, 0, y);
 					}
-					#endif
 				}
 				else
 				{
@@ -783,7 +831,7 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 			}
 			else
 			{
-				const uint32_t frequency = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_tx->frequency : g_vfo_info[vfo_num].p_rx->frequency;
+				const uint32_t frequency = (g_current_function == FUNCTION_TRANSMIT) ? p_vfo->p_tx->frequency : p_vfo->p_rx->frequency;
 
 				#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
 //					UART_printf("%u.%05u MHz\n", frequency / 100000, frequency % 100000);
@@ -812,41 +860,28 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 						big_freq(frequency, x, y);
 					#else
 
-						#ifdef ENABLE_SHOW_FREQS_CHAN
-							const unsigned int chan = g_vfo_info[vfo_num].freq_in_channel;
-						#endif
-
 						//sprintf(str, "%03u.%05u", frequency / 100000, frequency % 100000);
 						sprintf(str, "%u.%05u", frequency / 100000, frequency % 100000);
 						#ifdef ENABLE_TRIM_TRAILING_ZEROS
 							NUMBER_trim_trailing_zeros(str);
 						#endif
-/*
-						#ifdef ENABLE_SHOW_FREQS_CHAN
-							//g_vfo_info[vfo_num].freq_in_channel = SETTINGS_find_channel(frequency);
-							if (chan <= USER_CHANNEL_LAST)
-							{	// the frequency has a channel - show the channel name below the frequency
 
-								// frequency
-								#ifdef ENABLE_SMALL_BOLD
-									UI_PrintStringSmallBold(str, x + 4, 0, line + 0);
-								#else
-									UI_PrintStringSmall(str, x + 4, 0, y);
-								#endif
+						#ifdef ENABLE_SHOW_FREQ_IN_CHAN
+							UI_PrintString(str, x, 0, y, 8);
 
-								// channel name, if not then channel number
-								SETTINGS_fetch_channel_name(str, chan);
+							if (IS_FREQ_CHANNEL(scrn_chan) && freq_in_channel <= USER_CHANNEL_LAST)
+							{
+								SETTINGS_fetch_channel_name(str, freq_in_channel);
 								if (str[0] == 0)
-									//sprintf(str, "CH-%03u", 1 + chan);
-									sprintf(str, "CH-%u", 1 + chan);
-								UI_PrintStringSmall(str, x + 4, 0, y + 1);
+									//sprintf(str, "CH-%03u", 1 + freq_in_channel);
+									sprintf(str, "CH-%u", 1 + freq_in_channel);
+								//UI_PrintString(str, x, 0, y + 2, 8);
+								UI_PrintStringSmall(str, x, 0, y + 2);
 							}
-							else
-						#endif
-*/						{	// show the frequency in the main font
-//							UI_PrintString(str, x, 0, y, 8);
+						#else
 							UI_PrintString(str, x, 0, y + 1, 8);
-						}
+						#endif
+
 					#endif
 				}
 
@@ -858,55 +893,32 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 
 					unsigned int x = LCD_WIDTH - 1 - sizeof(BITMAP_SCANLIST2) - sizeof(BITMAP_SCANLIST1);
 
-					if (g_vfo_info[vfo_num].channel_attributes.scanlist1)
+					if (p_vfo->channel_attributes.scanlist1)
 						memcpy(p_line1 + x, BITMAP_SCANLIST1, sizeof(BITMAP_SCANLIST1));
 					x += sizeof(BITMAP_SCANLIST1);
 
-					if (g_vfo_info[vfo_num].channel_attributes.scanlist2)
+					if (p_vfo->channel_attributes.scanlist2)
 						memcpy(p_line1 + x, BITMAP_SCANLIST2, sizeof(BITMAP_SCANLIST2));
 					//x += sizeof(BITMAP_SCANLIST2);
 				}
 
 				{
-					#ifdef ENABLE_SHOW_FREQS_CHAN
-						strcpy(str, "  ");
-
-						#ifdef ENABLE_SCAN_IGNORE_LIST
-							if (FI_freq_ignored(frequency) >= 0)
-								str[0] = 'I';  // frequency is in the ignore list
-						#endif
-
-						if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
-							str[1] = 'C';  // compander is enabled
-
-						UI_PrintStringSmall(str, LCD_WIDTH - (7 * 2), 0, y + 1);
-					#else
-						const bool is_freq_chan       = IS_FREQ_CHANNEL(scrn_chan);
-						const uint8_t freq_in_channel = g_vfo_info[vfo_num].freq_in_channel;
-//						const uint8_t freq_in_channel = SETTINGS_find_channel(frequency);  // was way to slow
-
-						strcpy(str, "   ");
-
-						#ifdef ENABLE_SCAN_IGNORE_LIST
-							if (FI_freq_ignored(frequency) >= 0)
-								str[0] = 'I';  // frequency is in the ignore list
-						#endif
-
-						if (is_freq_chan && freq_in_channel <= USER_CHANNEL_LAST)
-						{	// this VFO frequency is also found in a channel
-							str[1] = 'F';
-
-
-							// TODO: show the channel name this frequency is found in
-
-
-						}
-
-						if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
-							str[2] = 'C';  // compander is enabled
-
-						UI_PrintStringSmall(str, LCD_WIDTH - (7 * 3), 0, y + 1);
+					strcpy(str, "   ");
+/*
+					#ifdef ENABLE_SHOW_FREQ_IN_CHAN
+						if (IS_FREQ_CHANNEL(scrn_chan) && freq_in_channel <= USER_CHANNEL_LAST)
+							str[0] = 'F';  // this VFO frequency is also found in a channel
 					#endif
+*/
+					#ifdef ENABLE_SCAN_IGNORE_LIST
+						if (FI_freq_ignored(frequency) >= 0)
+							str[1] = 'I';  // frequency is in the ignore list
+					#endif
+
+					if (p_vfo->channel.compand != COMPAND_OFF)
+						str[2] = 'C';  // compander is enabled
+
+					UI_PrintStringSmall(str, LCD_WIDTH - (7 * 3), 0, y + 1);
 				}
 			}
 
@@ -914,15 +926,15 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 			x = LCD_WIDTH - (7 * 6) - 4;
 
 			// audio scramble symbol
-			if (g_vfo_info[vfo_num].channel.scrambler > 0 && g_eeprom.config.setting.enable_scrambler)
+			if (p_vfo->channel.scrambler > 0 && g_eeprom.config.setting.enable_scrambler)
 				UI_PrintStringSmall("SCR", x, 0, y);
 			x += (7 * 3) + 4;
 
 			{	// bandwidth & modulation mode
 				const char  bw_list[]   = "WNn ";
 				const char *mode_list[] = {"FM", "AM", "SB", ""};
-				str[0] = bw_list[g_vfo_info[vfo_num].channel.channel_bandwidth];
-				strcpy(str + 1, mode_list[g_vfo_info[vfo_num].channel.mod_mode]);
+				str[0] = bw_list[p_vfo->channel.channel_bandwidth];
+				strcpy(str + 1, mode_list[p_vfo->channel.mod_mode]);
 				UI_PrintStringSmall(str, x, 0, y);
 				//x += 7 * 3;
 			}
@@ -934,7 +946,7 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 				str[0] = 0;
 				if (g_vfo_info[vfo_num].channel.mod_mode == MOD_MODE_FM)
 				{	// show the CTCSS/CDCSS symbol
-					const freq_config_t *pConfig   = (g_current_function == FUNCTION_TRANSMIT) ? g_vfo_info[vfo_num].p_tx : g_vfo_info[vfo_num].p_rx;
+					const freq_config_t *pConfig   = (g_current_function == FUNCTION_TRANSMIT) ? p_vfo->p_tx : p_vfo->p_rx;
 					const unsigned int   code_type = pConfig->code_type;
 					unsigned int         code      = pConfig->code;
 					switch (code_type)
@@ -962,7 +974,7 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 			if (tx_allowed)
 			{	// TX power
 				const char *pwr_list[] = {"LOW", "MID", "HIGH", "U"};
-				const unsigned int i = g_vfo_info[vfo_num].channel.tx_power;
+				const unsigned int i = p_vfo->channel.tx_power;
 				strcpy(str, pwr_list[i]);
 				if (i == OUTPUT_POWER_USER)
 					sprintf(str + strlen(str), "%03u", g_tx_vfo->channel.tx_power_user);
@@ -971,33 +983,34 @@ const char *state_list[] = {"", "BUSY", "BAT LOW", "TX DISABLE", "TIMEOUT", "ALA
 			x += 7 * 5;
 
 			// reverse offset symbol
-			if (g_vfo_info[vfo_num].channel.frequency_reverse)
+			if (p_vfo->channel.frequency_reverse)
 				UI_PrintStringSmall("R", x, 0, y);
 			x += 7 * 1;
 
-			if (tx_allowed && g_vfo_info[vfo_num].freq_config_rx.frequency != g_vfo_info[vfo_num].freq_config_tx.frequency)
-			{	// offset symbol
+			//if (p_vfo->freq_config_rx.frequency != p_vfo->freq_config_tx.frequency)
+			{	// offset direction symbol
 				const char *dir_list[] = {"", "+", "-"};
-				const unsigned int i = g_vfo_info[vfo_num].channel.tx_offset_dir;
+				const unsigned int i = p_vfo->channel.tx_offset_dir;
 				UI_PrintStringSmall(dir_list[i], x, 0, y);
 			}
 			x += 7 * 1;
 
-			if (g_vfo_info[vfo_num].channel.tx_offset_dir != TX_OFFSET_FREQ_DIR_OFF)
-			{	// TX/RX offset
-				const uint32_t ofs = g_vfo_info[vfo_num].channel.tx_offset;
+			if (p_vfo->channel.tx_offset_dir != TX_OFFSET_FREQ_DIR_OFF)
+			{	// TX/RX offset frequency
+				const uint32_t ofs = p_vfo->channel.tx_offset;
 				sprintf(str, "%u.%05u", ofs / 100000, ofs % 100000);
 				NUMBER_trim_trailing_zeros(str);
 				UI_PrintStringSmall(str, x, 0, y);
 			}
-			x += 7 * 7;
+			//x += 7 * 7;
 
 			// DTMF decoding symbol
-			str[0] = 0;
-			if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable)
-				strcpy(str, "DTMF");
-			UI_PrintStringSmall(str, x, 0, y);
-			//x += 7 * 5;
+			#ifdef ENABLE_DTMF_CALLING
+				str[0] = 0;
+				if (p_vfo->channel.dtmf_decoding_enable)
+					strcpy(str, "DTMF");
+				UI_PrintStringSmall(str, LCD_WIDTH - (7 * 4), 0, y);
+			#endif
 		}
 
 		UI_DisplayCenterLine();
@@ -1097,73 +1110,95 @@ void UI_DisplayMain(void)
 
 		if (current_vfo_num != vfo_num)
 		{
-			if (g_dtmf_call_state != DTMF_CALL_STATE_NONE || g_dtmf_is_tx || g_dtmf_input_mode)
-			{	// show DTMF stuff
-
-				char contact[17];
-
-				if (!g_dtmf_input_mode)
-				{
-					memset(contact, 0, sizeof(contact));
-					if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT)
+			#ifdef ENABLE_DTMF_CALLING
+				if (g_dtmf_call_state != DTMF_CALL_STATE_NONE || g_dtmf_is_tx || g_dtmf_input_mode)
+				{	// show DTMF stuff
+	
+					char contact[17];
+	
+					if (!g_dtmf_input_mode)
 					{
-						strcpy(str, (g_dtmf_state == DTMF_STATE_CALL_OUT_RSP) ? "CALL OUT RESP" : "CALL OUT");
+						memset(contact, 0, sizeof(contact));
+						if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT)
+						{
+							strcpy(str, (g_dtmf_state == DTMF_STATE_CALL_OUT_RSP) ? "CALL OUT RESP" : "CALL OUT");
+						}
+						else
+						if (g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED || g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
+						{
+							const bool found = DTMF_FindContact(g_dtmf_caller, contact);
+							contact[8] = 0;
+							sprintf(str, "FROM %s", found ? contact : g_dtmf_caller);
+						}
+						else
+						if (g_dtmf_is_tx)
+						{
+							strcpy(str, (g_dtmf_state == DTMF_STATE_TX_SUCC) ? "DTMF TX SUCC" : "DTMF TX");
+						}
 					}
 					else
-					if (g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED || g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
 					{
-						const bool found = DTMF_FindContact(g_dtmf_caller, contact);
-						contact[8] = 0;
-						sprintf(str, "FROM %s", found ? contact : g_dtmf_caller);
+						sprintf(str, "DTMF entry");
+					}
+					str[16] = 0;
+					UI_PrintString(str, 2, 0, 0 + (vfo_num * 3), 8);
+	
+					memset(str,  0, sizeof(str));
+					if (!g_dtmf_input_mode)
+					{
+						memset(contact, 0, sizeof(contact));
+						if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT)
+						{
+							const bool found = DTMF_FindContact(g_dtmf_string, contact);
+							contact[15] = 0;
+							sprintf(str, ">%s", found ? contact : g_dtmf_string);
+						}
+						else
+						if (g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED || g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
+						{
+							const bool found = DTMF_FindContact(g_dtmf_callee, contact);
+							contact[15] = 0;
+							sprintf(str, ">%s", found ? contact : g_dtmf_callee);
+						}
+						else
+						if (g_dtmf_is_tx)
+						{
+							sprintf(str, ">%s", g_dtmf_string);
+						}
 					}
 					else
-					if (g_dtmf_is_tx)
 					{
-						strcpy(str, (g_dtmf_state == DTMF_STATE_TX_SUCC) ? "DTMF TX SUCC" : "DTMF TX");
+						sprintf(str, ">%s", g_dtmf_input_box);
 					}
+					str[16] = 0;
+					UI_PrintString(str, 2, 0, 2 + (vfo_num * 3), 8);
+	
+					pan_enabled = false;
+	
+					g_center_line = CENTER_LINE_IN_USE;
+					continue;
 				}
-				else
-				{
-					sprintf(str, "DTMF entry");
+			#else
+				if (g_dtmf_is_tx || g_dtmf_input_mode)
+				{	// show DTMF stuff
+	
+					str[0] = 0;
+					if (g_dtmf_input_mode)
+						sprintf(str, "DTMF entry");
+					UI_PrintString(str, 2, 0, 0 + (vfo_num * 3), 8);
+	
+					str[0] = 0;
+					if (g_dtmf_input_mode)
+						sprintf(str, ">%s", g_dtmf_input_box);
+					str[16] = 0;
+					UI_PrintString(str, 2, 0, 2 + (vfo_num * 3), 8);
+	
+					pan_enabled = false;
+	
+					g_center_line = CENTER_LINE_IN_USE;
+					continue;
 				}
-				str[16] = 0;
-				UI_PrintString(str, 2, 0, 0 + (vfo_num * 3), 8);
-
-				memset(str,  0, sizeof(str));
-				if (!g_dtmf_input_mode)
-				{
-					memset(contact, 0, sizeof(contact));
-					if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT)
-					{
-						const bool found = DTMF_FindContact(g_dtmf_string, contact);
-						contact[15] = 0;
-						sprintf(str, ">%s", found ? contact : g_dtmf_string);
-					}
-					else
-					if (g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED || g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
-					{
-						const bool found = DTMF_FindContact(g_dtmf_callee, contact);
-						contact[15] = 0;
-						sprintf(str, ">%s", found ? contact : g_dtmf_callee);
-					}
-					else
-					if (g_dtmf_is_tx)
-					{
-						sprintf(str, ">%s", g_dtmf_string);
-					}
-				}
-				else
-				{
-					sprintf(str, ">%s", g_dtmf_input_box);
-				}
-				str[16] = 0;
-				UI_PrintString(str, 2, 0, 2 + (vfo_num * 3), 8);
-
-				pan_enabled = false;
-
-				g_center_line = CENTER_LINE_IN_USE;
-				continue;
-			}
+			#endif
 		}
 
 		if (single_vfo < 0)
@@ -1330,9 +1365,9 @@ void UI_DisplayMain(void)
 
 								// name
 								#ifdef ENABLE_SMALL_BOLD
-									UI_PrintStringSmallBold(str, x + 4, 0, line + 0);
+									UI_PrintStringSmallBold(str, x + 4, 0, line);
 								#else
-									UI_PrintStringSmall(str, x + 4, 0, line + 0);
+									UI_PrintStringSmall(str, x + 4, 0, line);
 								#endif
 
 								// frequency
@@ -1354,40 +1389,39 @@ void UI_DisplayMain(void)
 						big_freq(frequency, x, line);
 					#else
 
-						#ifdef ENABLE_SHOW_FREQS_CHAN
-							const unsigned int chan = g_vfo_info[vfo_num].freq_in_channel;
-						#endif
-
 //						sprintf(str, "%03u.%05u", frequency / 100000, frequency % 100000);
 						sprintf(str, "%u.%05u", frequency / 100000, frequency % 100000);
 						#ifdef ENABLE_TRIM_TRAILING_ZEROS
 							NUMBER_trim_trailing_zeros(str);
 						#endif
 
-						#ifdef ENABLE_SHOW_FREQS_CHAN
+						#ifdef ENABLE_SHOW_FREQ_IN_CHAN
+						{
 							//g_vfo_info[vfo_num].freq_in_channel = SETTINGS_find_channel(frequency);
-							if (chan <= USER_CHANNEL_LAST)
+							const unsigned int freq_in_channel = g_vfo_info[vfo_num].freq_in_channel;
+
+							if (freq_in_channel <= USER_CHANNEL_LAST)
 							{	// the frequency has a channel - show the channel name below the frequency
 
-								// frequency
 								#ifdef ENABLE_SMALL_BOLD
-									UI_PrintStringSmallBold(str, x + 4, 0, line + 0);
+									UI_PrintStringSmallBold(str, x, 0, line);
 								#else
-									UI_PrintStringSmall(str, x + 4, 0, line + 0);
+									UI_PrintStringSmall(str, x, 0, line);
 								#endif
 
 								// channel name, if not then channel number
-								SETTINGS_fetch_channel_name(str, chan);
+								SETTINGS_fetch_channel_name(str, freq_in_channel);
 								if (str[0] == 0)
-//									sprintf(str, "CH-%03u", 1 + chan);
-									sprintf(str, "CH-%u", 1 + chan);
-								UI_PrintStringSmall(str, x + 4, 0, line + 1);
+									//sprintf(str, "CH-%03u", 1 + freq_in_channel);
+									sprintf(str, "CH-%u", 1 + freq_in_channel);
+								UI_PrintStringSmall(str, x, 0, line + 1);
 							}
 							else
-						#endif
-						{	// show the frequency in the main font
-							UI_PrintString(str, x, 0, line, 8);
+								UI_PrintString(str, x, 0, line, 8);
 						}
+						#else
+							UI_PrintString(str, x, 0, line, 8);
+						#endif
 
 					#endif
 				}
@@ -1434,38 +1468,27 @@ void UI_DisplayMain(void)
 				}
 				#else
 				{
-					#ifdef ENABLE_SHOW_FREQS_CHAN
-						strcpy(str, "  ");
-
-						#ifdef ENABLE_SCAN_IGNORE_LIST
-							if (FI_freq_ignored(frequency) >= 0)
-								str[0] = 'I';  // frequency is in the ignore list
-						#endif
-
-						if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
-							str[1] = 'C';  // compander is enabled
-
-						UI_PrintStringSmall(str, LCD_WIDTH - (7 * 2), 0, line + 1);
-					#else
-						const bool is_freq_chan       = IS_FREQ_CHANNEL(scrn_chan);
-						const uint8_t freq_in_channel = g_vfo_info[vfo_num].freq_in_channel;
-//						const uint8_t freq_in_channel = SETTINGS_find_channel(frequency);  // was way to slow
-
-						strcpy(str, "   ");
-
-						#ifdef ENABLE_SCAN_IGNORE_LIST
-							if (FI_freq_ignored(frequency) >= 0)
-								str[0] = 'I';  // frequency is in the ignore list
-						#endif
-
-						if (is_freq_chan && freq_in_channel <= USER_CHANNEL_LAST)
-							str[1] = 'F';  // this VFO frequency is also found in a channel
-
-						if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
-							str[2] = 'C';  // compander is enabled
-
-						UI_PrintStringSmall(str, LCD_WIDTH - (7 * 3), 0, line + 1);
+					strcpy(str, "   ");
+/*
+					#ifdef ENABLE_SHOW_FREQ_IN_CHAN
+						if (IS_FREQ_CHANNEL(scrn_chan))
+						{
+							const uint8_t freq_in_channel = g_vfo_info[vfo_num].freq_in_channel;
+							//const uint8_t freq_in_channel = SETTINGS_find_channel(frequency);  // was way to slow
+							if (freq_in_channel <= USER_CHANNEL_LAST)
+								str[0] = 'F';  // this VFO frequency is also found in a channel
+						}
 					#endif
+*/
+					#ifdef ENABLE_SCAN_IGNORE_LIST
+						if (FI_freq_ignored(frequency) >= 0)
+							str[1] = 'I';  // frequency is in the ignore list
+					#endif
+
+					if (g_vfo_info[vfo_num].channel.compand != COMPAND_OFF)
+						str[2] = 'C';  // compander is enabled
+
+					UI_PrintStringSmall(str, LCD_WIDTH - (7 * 3), 0, line + 1);
 				}
 				#endif
 			}
@@ -1556,13 +1579,15 @@ void UI_DisplayMain(void)
 		UI_PrintStringSmall(str, 70, 0, line + 2);
 
 		// show the DTMF decoding symbol
-		#ifdef ENABLE_KILL_REVIVE
-			if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable || g_eeprom.config.setting.radio_disabled)
-				UI_PrintStringSmall("DTMF", 78, 0, line + 2);
-		#else
-			if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable)
-				UI_PrintStringSmall("DTMF", 78, 0, line + 2);
-				//UI_PrintStringSmallest("DTMF", 78, (line + 2) * 8, false, true);
+		#ifdef ENABLE_DTMF_CALLING
+			#ifdef ENABLE_DTMF_KILL_REVIVE
+				if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable || g_eeprom.config.setting.radio_disabled)
+					UI_PrintStringSmall("DTMF", 78, 0, line + 2);
+			#else
+				if (g_vfo_info[vfo_num].channel.dtmf_decoding_enable)
+					UI_PrintStringSmall("DTMF", 78, 0, line + 2);
+					//UI_PrintStringSmallest("DTMF", 78, (line + 2) * 8, false, true);
+			#endif
 		#endif
 
 		// show the audio scramble symbol

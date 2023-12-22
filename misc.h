@@ -57,6 +57,8 @@
 #define APOLLO_TONE1_HZ        2525
 #define APOLLO_TONE2_HZ        2475
 
+#define TONE_1750_MS           500
+
 enum {
 	USER_CHANNEL_FIRST = 0,
 	USER_CHANNEL_LAST  = 199u,
@@ -83,9 +85,9 @@ enum {
 
 enum alarm_state_e {
 	ALARM_STATE_OFF = 0,
-	ALARM_STATE_TXALARM,
+	ALARM_STATE_TX_ALARM,
 	ALARM_STATE_ALARM,
-	ALARM_STATE_TX1750
+	ALARM_STATE_TX_TONE
 };
 typedef enum alarm_state_e alarm_state_t;
 
@@ -120,6 +122,8 @@ enum scan_state_dir_e {
 typedef enum scan_state_dir_e scan_state_dir_t;
 
 extern const uint8_t         obfuscate_array[16];
+
+extern const uint16_t        tx_timeout_secs[16];
 
 extern const uint8_t         fm_resume_500ms;
 extern const uint8_t         fm_radio_500ms;

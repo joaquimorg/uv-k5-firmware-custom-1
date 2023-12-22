@@ -25,13 +25,9 @@
 #include "frequencies.h"
 
 enum {
-	FM_DEV_LIMIT_LOWER_NARROW   =  700,
-	FM_DEV_LIMIT_DEFAULT_NARROW =  900,
-	FM_DEV_LIMIT_UPPER_NARROW   = 1500,   // 1100
-
-	FM_DEV_LIMIT_LOWER_WIDE     =  900,
-	FM_DEV_LIMIT_DEFAULT_WIDE   = 1283,
-	FM_DEV_LIMIT_UPPER_WIDE     = 1600
+	FM_DEV_LIMIT_LOWER   = 1000,
+	FM_DEV_LIMIT_DEFAULT = 1350,
+	FM_DEV_LIMIT_UPPER   = 1600
 };
 
 enum mod_mode_e {
@@ -106,7 +102,7 @@ enum {
 	ACTION_OPT_VOX,
 	ACTION_OPT_ALARM,
 	ACTION_OPT_FM,
-	ACTION_OPT_1750,
+	ACTION_OPT_TX_TONE,
 	ACTION_OPT_LEN
 };
 
@@ -164,7 +160,8 @@ enum ptt_id_e {
 	PTT_ID_BOT,        // BEGIN OF TX
 	PTT_ID_EOT,        // END OF TX
 	PTT_ID_BOTH,       // BOTH
-	PTT_ID_APOLLO      // Apolo quindar tones
+	PTT_ID_APOLLO,     // Apolo quindar tones
+	PTT_ID_TONE_BURST  // tone burst
 };
 typedef enum ptt_id_e ptt_id_t;
 
@@ -535,11 +532,11 @@ typedef struct {
 	uint16_t vox_threshold_disable[10];             //
 //	#ifdef ENABLE_FM_DEV_CAL_MENU
 		// 1of11
-		uint16_t deviation_narrow;                  //
-		uint16_t deviation_wide;                    //
+		uint16_t deviation;                         //
+		uint8_t  unused1a[2];                       // 0xff's
 //	#else
 //		// QS
-//		uint8_t  unused[4];                         // 0xff's
+//		uint8_t  unused1a[4];                       // 0xff's
 //	#endif
 
 	// 0x1F80

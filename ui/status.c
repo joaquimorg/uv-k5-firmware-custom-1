@@ -31,15 +31,7 @@
 #include "ui/helper.h"
 #include "ui/ui.h"
 #include "ui/status.h"
-/*
-void invert_pixels(void *p, const unsigned int size)
-{
-	unsigned int i;
-	uint8_t *p8 = (uint8_t *)p; 
-	for (i = 0; i < size; i++)
-		*p8++ ^= 0xff;
-}
-*/
+
 void UI_DisplayStatus(const bool test_display)
 {
 	uint8_t     *line = g_status_line;
@@ -49,26 +41,17 @@ void UI_DisplayStatus(const bool test_display)
 
 	memset(g_status_line, 0, sizeof(g_status_line));
 
-	// **************
-
 	// POWER-SAVE indicator
-	if (g_current_function == FUNCTION_TRANSMIT)
-	{
-		memcpy(line + x, BITMAP_TX, sizeof(BITMAP_TX));
-//		invert_pixels(line + x, sizeof(BITMAP_TX));
-	}
-	else
-	if (g_current_function == FUNCTION_RECEIVE ||
-	    g_current_function == FUNCTION_NEW_RECEIVE ||
-		g_monitor_enabled)
-	{
-		memcpy(line + x, BITMAP_RX, sizeof(BITMAP_RX));
-	}
-	else
 	if (g_current_function == FUNCTION_POWER_SAVE || test_display)
-	{
 		memcpy(line + x, BITMAP_POWERSAVE, sizeof(BITMAP_POWERSAVE));
-	}
+	else
+#if 0
+	if (g_current_function == FUNCTION_TRANSMIT)
+		memcpy(line + x, BITMAP_TX, sizeof(BITMAP_TX));
+	else
+	if (g_current_function == FUNCTION_RECEIVE || g_current_function == FUNCTION_NEW_RECEIVE || g_monitor_enabled)
+		memcpy(line + x, BITMAP_RX, sizeof(BITMAP_RX));
+#endif
 	x += sizeof(BITMAP_POWERSAVE) + 1;
 
 	#ifdef ENABLE_NOAA
@@ -80,7 +63,7 @@ void UI_DisplayStatus(const bool test_display)
 		}
 	#endif
 
-	#ifdef ENABLE_KILL_REVIVE
+	#ifdef ENABLE_DTMF_KILL_REVIVE
 		if (g_eeprom.config.setting.radio_disabled)
 		{
 			memset(line + x, 0xFF, 10);
@@ -143,7 +126,9 @@ void UI_DisplayStatus(const bool test_display)
 		#endif
 
 		if (g_dual_watch_tick_10ms > dual_watch_delay_toggle_10ms ||
-			g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+			#ifdef ENABLE_DTMF_CALLING
+				g_dtmf_call_state != DTMF_CALL_STATE_NONE ||
+			#endif
 			g_scan_state_dir != SCAN_STATE_DIR_OFF  ||
 			g_css_scan_mode != CSS_SCAN_MODE_OFF    ||
 			(g_current_function != FUNCTION_FOREGROUND && g_current_function != FUNCTION_POWER_SAVE) ||
@@ -153,14 +138,9 @@ void UI_DisplayStatus(const bool test_display)
 		}
 
 		if (dw_running)
-		{
 			memcpy(line + x, BITMAP_TDR_RUNNING, sizeof(BITMAP_TDR_RUNNING));
-//			invert_pixels(line + x, sizeof(BITMAP_TDR_RUNNING));
-		}
 		else
-		{
 			memcpy(line + x, BITMAP_TDR_HOLDING, sizeof(BITMAP_TDR_HOLDING));
-		}
 		x += sizeof(BITMAP_TDR_RUNNING) + 1;
 	}
 
@@ -194,7 +174,6 @@ void UI_DisplayStatus(const bool test_display)
 	if (g_eeprom.config.setting.key_lock || test_display)
 	{
 		memcpy(line + x, BITMAP_KEYLOCK, sizeof(BITMAP_KEYLOCK));
-//		invert_pixels(line + x, sizeof(BITMAP_KEYLOCK));
 		x += sizeof(BITMAP_KEYLOCK) + 1;
 	}
 	else
@@ -202,7 +181,6 @@ void UI_DisplayStatus(const bool test_display)
 	if (g_fkey_pressed)
 	{
 		memcpy(line + x, BITMAP_F_KEY, sizeof(BITMAP_F_KEY));
-//		invert_pixels(line + x, sizeof(BITMAP_F_KEY));
 		x += sizeof(BITMAP_F_KEY);
 	}
 	x++;
@@ -253,8 +231,6 @@ void UI_DisplayStatus(const bool test_display)
 
 	// BATTERY LEVEL indicator
 	UI_DrawBattery(line + x, g_battery_display_level, g_low_battery_blink);
-
-	// **************
 
 	ST7565_BlitStatusLine();
 }

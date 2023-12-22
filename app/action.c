@@ -117,12 +117,12 @@ void ACTION_Monitor(void)
 	}
 
 	// disable monitor
-	
+
 	g_monitor_enabled = false;
 
 	if (!g_squelch_open)
 		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
-	
+
 	if (g_scan_state_dir != SCAN_STATE_DIR_OFF)
 		g_scan_tick_10ms = g_eeprom.config.setting.scan_hold_time * 50;
 
@@ -207,7 +207,9 @@ void ACTION_Scan(bool bRestart)
 		g_monitor_enabled = false;
 		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
 
-		DTMF_clear_RX();
+		#ifdef ENABLE_DTMF_CALLING
+			DTMF_clear_RX();
+		#endif
 
 		#ifdef ENABLE_DTMF_LIVE_DECODER
 			g_dtmf_rx_live_timeout = 0;
@@ -217,37 +219,37 @@ void ACTION_Scan(bool bRestart)
 		RADIO_select_vfos();
 
 		GUI_SelectNextDisplay(DISPLAY_MAIN);
-		
+
 		if (g_scan_state_dir != SCAN_STATE_DIR_OFF)
 		{	// currently scanning
-		
+
 			if (g_scan_next_channel <= USER_CHANNEL_LAST)
 			{	// channel mode
-		
+
 				if (g_eeprom.config.setting.scan_list_default < 2)
 				{	// keep scanning but toggle between scan lists
-		
+
 					//g_eeprom.config.setting.scan_list_default = (g_eeprom.config.setting.scan_list_default + 1) % 3;
 					g_eeprom.config.setting.scan_list_default++;
-		
+
 					// jump to the next channel
 					APP_channel_next(true, g_scan_state_dir);
-					
-					g_scan_tick_10ms      = 0;
+
+					g_scan_tick_10ms       = 0;
 					g_scan_pause_time_mode = false;
-		
+
 					g_update_status = true;
 					return;
 				}
-		
+
 				g_eeprom.config.setting.scan_list_default = 0;	// back to scan list 1 - the next time we start scanning
 			}
-		
+
 			// *****************
 			// stop scanning
-		
+
 			APP_stop_scan();
-		
+
 			g_request_display_screen = DISPLAY_MAIN;
 
 			return;
@@ -255,7 +257,7 @@ void ACTION_Scan(bool bRestart)
 
 		// **********************
 		// start scanning
-		
+
 		{
 			const uint32_t         freq = g_tx_vfo->freq_config_rx.frequency;
 			const frequency_band_t band = FREQUENCY_GetBand(freq);
@@ -263,7 +265,7 @@ void ACTION_Scan(bool bRestart)
 			g_scan_initial_lower        = FREQ_BAND_TABLE[band].lower;
 			g_scan_initial_step_size    = g_tx_vfo->step_freq;
 		}
-		
+
 		#ifdef ENABLE_SCAN_RANGES
 			if (IS_FREQ_CHANNEL(g_tx_vfo->channel_save) && g_eeprom.config.setting.scan_ranges_enable)
 			{
@@ -272,36 +274,36 @@ void ACTION_Scan(bool bRestart)
 //				freq = FREQUENCY_floor_to_step(freq, g_scan_initial_step_size, g_scan_initial_lower, g_scan_initial_upper);			}
 			}
 		#endif
-		
+
 		g_monitor_enabled = false;
 		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
-		
+
 		RADIO_setup_registers(true);
-		
+
 		APP_channel_next(true, SCAN_STATE_DIR_FORWARD);
-		
+
 		g_scan_tick_10ms       = 0;   // go NOW
 		g_scan_pause_time_mode = false;
-		
+
 		#ifdef ENABLE_VOICE
 			AUDIO_SetVoiceID(0, VOICE_ID_SCANNING_BEGIN);
 			AUDIO_PlaySingleVoice(true);
 		#endif
-		
+
 		// clear the other vfo's rssi level (to hide the antenna symbol)
 		g_vfo_rssi_bar_level[(g_rx_vfo_num + 1) & 1u] = 0;
-		
+
 		g_update_status = true;
 
 		return;
 	}
 
 	// freq/ctcss/cdcss/search mode
-	
-	
+
+
 	// TODO: fixme
-	
-	
+
+
 //	if (!bRestart)
 	if (!bRestart && g_scan_next_channel <= USER_CHANNEL_LAST)
 	{	// channel mode, keep scanning but toggle between scan lists
@@ -336,22 +338,21 @@ void ACTION_Scan(bool bRestart)
 	}
 #endif
 
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-	static void ACTION_AlarmOr1750(const bool b1750)
+#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
+	static void ACTION_AlarmOrTone(const bool tone)
 	{
 		g_input_box_index = 0;
 
-		(void)b1750;  // stop compile warning
-		
-		#if defined(ENABLE_ALARM) && defined(ENABLE_TX1750)
-			g_alarm_state = b1750 ? ALARM_STATE_TX1750 : ALARM_STATE_TXALARM;
-			g_alarm_running_counter_10ms = 0;
+		(void)tone;  // stop compile warning
+
+		#if defined(ENABLE_ALARM) && (ENABLE_TX_TONE_HZ > 0)
+			g_alarm_state = tone ? ALARM_STATE_TX_TONE : ALARM_STATE_TX_ALARM;
 		#elif defined(ENABLE_ALARM)
-			g_alarm_state          = ALARM_STATE_TXALARM;
-			g_alarm_running_counter_10ms = 0;
+			g_alarm_state = ALARM_STATE_TX_ALARM;
 		#else
-			g_alarm_state = ALARM_STATE_TX1750;
+			g_alarm_state = ALARM_STATE_TX_TONE;
 		#endif
+		g_alarm_running_counter_10ms = 0;
 
 		g_flag_prepare_tx = true;
 
@@ -360,7 +361,6 @@ void ACTION_Scan(bool bRestart)
 	}
 #endif
 
-
 #ifdef ENABLE_FMRADIO
 	void ACTION_FM(void)
 	{
@@ -368,14 +368,14 @@ void ACTION_Scan(bool bRestart)
 		{
 			if (g_fm_radio_mode)
 			{	// return normal service
-		
+
 				FM_turn_off();
 
 				g_input_box_index = 0;
 				#ifdef ENABLE_VOX
 					g_vox_resume_tick_10ms = 80;
 				#endif
-				g_flag_reconfigure_vfos  = true;
+				g_flag_reconfigure_vfos = true;
 
 				g_request_display_screen = DISPLAY_MAIN;
 				return;
@@ -452,7 +452,7 @@ void ACTION_process(const key_code_t Key, const bool key_pressed, const bool key
 			break;
 		case ACTION_OPT_ALARM:
 			#ifdef ENABLE_ALARM
-				ACTION_AlarmOr1750(false);
+				ACTION_AlarmOrTone(false);
 			#endif
 			break;
 		#ifdef ENABLE_FMRADIO
@@ -460,9 +460,9 @@ void ACTION_process(const key_code_t Key, const bool key_pressed, const bool key
 				ACTION_FM();
 				break;
 		#endif
-		case ACTION_OPT_1750:
-			#ifdef ENABLE_TX1750
-				ACTION_AlarmOr1750(true);
+		case ACTION_OPT_TX_TONE:
+			#if (ENABLE_TX_TONE_HZ > 0)
+				ACTION_AlarmOrTone(true);
 			#endif
 			break;
 	}

@@ -109,7 +109,9 @@ const t_menu_item g_menu_list[] =
 #ifdef ENABLE_ALARM
 	{"SOS AL", VOICE_ID_INVALID,                       MENU_ALARM_MODE            }, // was "ALMODE"
 #endif
+#ifdef ENABLE_DTMF_CALLING
 	{"ANI ID", VOICE_ID_ANI_CODE,                      MENU_ANI_ID                },
+#endif
 	{"UpCODE", VOICE_ID_INVALID,                       MENU_UP_CODE               },
 	{"DnCODE", VOICE_ID_INVALID,                       MENU_DN_CODE               }, // was "DWCODE"
 #ifdef ENABLE_MDC1200
@@ -118,13 +120,21 @@ const t_menu_item g_menu_list[] =
 #endif
 	{"PTT ID", VOICE_ID_INVALID,                       MENU_PTT_ID                },
 	{"D ST",   VOICE_ID_INVALID,                       MENU_DTMF_ST               },
+#ifdef ENABLE_DTMF_CALLING
     {"D RSP",  VOICE_ID_INVALID,                       MENU_DTMF_RSP              },
 	{"D HOLD", VOICE_ID_INVALID,                       MENU_DTMF_HOLD             },
-	{"D PRE",  VOICE_ID_INVALID,                       MENU_DTMF_PRE              },
 	{"D DCD",  VOICE_ID_INVALID,                       MENU_DTMF_DCD              },
 	{"D LIST", VOICE_ID_INVALID,                       MENU_DTMF_LIST             },
+#endif
 #ifdef ENABLE_DTMF_LIVE_DECODER
 	{"D LIVE", VOICE_ID_INVALID,                       MENU_DTMF_LIVE_DEC         }, // live DTMF decoder
+#endif
+#ifdef ENABLE_DTMF_TIMING_SETTINGS
+	{"D PRE",  VOICE_ID_INVALID,                       MENU_DTMF_PRE              },
+	{"D 1PER", VOICE_ID_INVALID,                       MENU_DTMF_1ST_PERSIST      },
+	{"D HPER", VOICE_ID_INVALID,                       MENU_DTMF_HASH_PERSIST     },
+	{"D PER",  VOICE_ID_INVALID,                       MENU_DTMF_PERSIST          },
+	{"D INT",  VOICE_ID_INVALID,                       MENU_DTMF_INTERVAL         },
 #endif
 	{"PonMSG", VOICE_ID_INVALID,                       MENU_PON_MSG               },
 	{"ROGER",  VOICE_ID_INVALID,                       MENU_ROGER_MODE            },
@@ -162,8 +172,7 @@ const t_menu_item g_menu_list[] =
 #endif
 
 #ifdef ENABLE_FM_DEV_CAL_MENU
-	{"FN CAL", VOICE_ID_INVALID,                       MENU_TX_FM_DEV_CAL_N,      }, // narrow FM deviation calibration
-	{"FW CAL", VOICE_ID_INVALID,                       MENU_TX_FM_DEV_CAL_W,      }, // wide FM deviation calibration
+	{"DEVCAL", VOICE_ID_INVALID,                       MENU_TX_FM_DEV_CAL,        }, // FM deviation calibration
 #endif
 
 #ifdef ENABLE_F_CAL_MENU
@@ -231,21 +240,6 @@ const char g_sub_menu_bat_save[5][9] =
 	"1:4 80%"
 };
 
-const char g_sub_menu_tx_timeout[11][7] =
-{
-	"30 sec",
-	"1 min",
-	"2 min",
-	"3 min",
-	"4 min",
-	"5 min",
-	"6 min",
-	"7 min",
-	"8 min",
-	"9 min",
-	"15 min"
-};
-
 const char g_sub_menu_dual_watch[3][10] =
 {
 	"OFF",
@@ -293,21 +287,24 @@ const char g_sub_menu_mem_disp[4][12] =
 	};
 #endif
 
-const char g_sub_menu_dtmf_rsp[4][9] =
-{
-	"NONE",
-	"RING",
-	"REPLY",
-	"RNG RPLY"
-};
+#ifdef ENABLE_DTMF_CALLING
+	const char g_sub_menu_dtmf_rsp[4][9] =
+	{
+		"NONE",
+		"RING",
+		"REPLY",
+		"RNG RPLY"
+	};
+#endif
 
-const char g_sub_menu_ptt_id[5][16] =
+const char g_sub_menu_ptt_id[6][17] =
 {
 	"DTMF ID\nOFF",
 	"DTMF ID\nBOT",
 	"DTMF ID\nEOT",
 	"DTMF ID\nBOT+EOT",
-	"APOLLO\nQUINDAR"
+	"APOLLO\nQUINDAR",
+	"TONE BURST\n"
 };
 
 #ifdef ENABLE_MDC1200
@@ -390,7 +387,7 @@ const char g_sub_menu_side_butt[9][16] =
 	"VOX\non\\off",
 	"ALARM\non\\off",
 	"FM RADIO\non\\off",
-	"TX\n1750Hz",
+	"TX\nTONE",
 //	"2nd PTT",
 };
 #endif
@@ -718,6 +715,10 @@ void UI_DisplayMenu(void)
 
 		case MENU_SCRAMBLER:
 			strcpy(str, "INVERT\n");
+
+			if (g_eeprom.config.setting.enable_scrambler == 0)
+				strcat(str, "DISABLED");
+			else
 			if (g_sub_menu_selection == 0)
 				strcat(str, "OFF");
 			else
@@ -729,6 +730,7 @@ void UI_DisplayMenu(void)
 				else
 					BK4819_set_scrambler(0);
 			#endif
+
 			channel_setting = true;
 			break;
 
@@ -831,14 +833,26 @@ void UI_DisplayMenu(void)
 			strcat(str, g_sub_menu_off_on[g_sub_menu_selection]);
 			break;
 
-		#ifdef ENABLE_DTMF_LIVE_DECODER
+		#if defined(ENABLE_DTMF_LIVE_DECODER) && defined(ENABLE_DTMF_CALLING)
+			case MENU_DTMF_DCD:
 			case MENU_DTMF_LIVE_DEC:
+				strcpy(str, "DTMF\nDECODE\n");
+				strcat(str, g_sub_menu_off_on[g_sub_menu_selection]);
+				channel_setting = true;
+				break;
+		#elif defined(ENABLE_DTMF_CALLING)
+			case MENU_DTMF_DCD:
+				strcpy(str, "DTMF\nDECODE\n");
+				strcat(str, g_sub_menu_off_on[g_sub_menu_selection]);
+				channel_setting = true;
+				break;
+		#elif defined(ENABLE_DTMF_LIVE_DECODER)
+			case MENU_DTMF_LIVE_DEC:
+				strcpy(str, "DTMF\nDECODE\n");
+				strcat(str, g_sub_menu_off_on[g_sub_menu_selection]);
+				channel_setting = true;
+				break;
 		#endif
-		case MENU_DTMF_DCD:
-			strcpy(str, "DTMF\nDECODE\n");
-			strcat(str, g_sub_menu_off_on[g_sub_menu_selection]);
-			channel_setting = true;
-			break;
 
 		case MENU_STE:
 			strcpy(str, "SUB TAIL\nELIMIN\n");
@@ -971,7 +985,23 @@ void UI_DisplayMenu(void)
 			break;
 
 		case MENU_TX_TO:
-			strcpy(str, g_sub_menu_tx_timeout[g_sub_menu_selection]);
+			{
+				const uint16_t ticks_500ms = tx_timeout_secs[g_sub_menu_selection];
+				const unsigned int min = ticks_500ms / 60;
+				const unsigned int sec = ticks_500ms % 60;
+				if (sec > 0)
+				{
+					if (min > 0)
+						sprintf(str, "%um %us", min, sec);
+					else
+						sprintf(str, "%u sec", sec);
+				}
+				else
+				if (min > 0)
+					sprintf(str, "%u min", min);
+				else
+					strcat(str, "off");
+			}
 			break;
 
 		#ifdef ENABLE_VOICE
@@ -1023,10 +1053,12 @@ void UI_DisplayMenu(void)
 				break;
 		#endif
 
-		case MENU_ANI_ID:
-			strcpy(str, "DTMF ID\n");
-			strcat(str, g_eeprom.config.setting.dtmf.ani_id);
-			break;
+		#ifdef ENABLE_DTMF_CALLING
+			case MENU_ANI_ID:
+				strcpy(str, "DTMF ID\n");
+				strcat(str, g_eeprom.config.setting.dtmf.ani_id);
+				break;
+		#endif
 
 		case MENU_UP_CODE:
 			strcpy(str, "DTMF BOT\n");
@@ -1040,44 +1072,104 @@ void UI_DisplayMenu(void)
 			channel_setting = true;
 			break;
 
-		case MENU_DTMF_RSP:
-			strcpy(str, "DTMF\nRESP\n");
-			strcat(str, g_sub_menu_dtmf_rsp[g_sub_menu_selection]);
+		case MENU_PTT_ID:
+			strcpy(str, g_sub_menu_ptt_id[g_sub_menu_selection]);
+			if (g_sub_menu_selection == PTT_ID_TONE_BURST)
+			{
+				#if (ENABLE_TX_TONE_HZ > 0)
+					sprintf(str + strlen(str), "%uHz", (uint16_t)ENABLE_TX_TONE_HZ);
+				#else
+					strcat("1750Hz");
+				#endif
+			}
+
 			channel_setting = true;
 			break;
 
-		case MENU_DTMF_HOLD:
-			// only allow 5, 10, 20, 30, 40, 50 or "STAY ON SCREEN" (60)
-			switch (g_sub_menu_selection)
+		#ifdef ENABLE_DTMF_CALLING
+			case MENU_DTMF_RSP:
+				strcpy(str, "DTMF\nRESP\n");
+				strcat(str, g_sub_menu_dtmf_rsp[g_sub_menu_selection]);
+				channel_setting = true;
+				break;
+	
+			case MENU_DTMF_HOLD:
+				// only allow 5, 10, 20, 30, 40, 50 or "STAY ON SCREEN" (60)
+				switch (g_sub_menu_selection)
+				{
+					case  4: g_sub_menu_selection = 60; break;
+					case  6: g_sub_menu_selection = 10; break;
+					case  9: g_sub_menu_selection =  5; break;
+					case 11: g_sub_menu_selection = 20; break;
+					case 19: g_sub_menu_selection = 10; break;
+					case 21: g_sub_menu_selection = 30; break;
+					case 29: g_sub_menu_selection = 20; break;
+					case 31: g_sub_menu_selection = 40; break;
+					case 39: g_sub_menu_selection = 30; break;
+					case 41: g_sub_menu_selection = 50; break;
+					case 49: g_sub_menu_selection = 40; break;
+					case 51: g_sub_menu_selection = 60; break;
+					case 59: g_sub_menu_selection = 50; break;
+					case 61: g_sub_menu_selection =  5; break;
+				}
+	
+				strcpy(str, "DTMF MSG\n");
+				if (g_sub_menu_selection < DTMF_HOLD_MAX)
+					sprintf(str + strlen(str), "%d sec", g_sub_menu_selection);
+				else
+					strcat(str, "STAY ON\nSCRN");  // 60
+	
+				break;
+
+			case MENU_DTMF_LIST:
 			{
-				case  4: g_sub_menu_selection = 60; break;
-				case  6: g_sub_menu_selection = 10; break;
-				case  9: g_sub_menu_selection =  5; break;
-				case 11: g_sub_menu_selection = 20; break;
-				case 19: g_sub_menu_selection = 10; break;
-				case 21: g_sub_menu_selection = 30; break;
-				case 29: g_sub_menu_selection = 20; break;
-				case 31: g_sub_menu_selection = 40; break;
-				case 39: g_sub_menu_selection = 30; break;
-				case 41: g_sub_menu_selection = 50; break;
-				case 49: g_sub_menu_selection = 40; break;
-				case 51: g_sub_menu_selection = 60; break;
-				case 59: g_sub_menu_selection = 50; break;
-				case 61: g_sub_menu_selection =  5; break;
+				char Contact[17];
+				g_dtmf_is_contact_valid = DTMF_GetContact((int)g_sub_menu_selection - 1, Contact);
+				strcpy(str, "DTMF\n");
+				if (!g_dtmf_is_contact_valid)
+				{
+					strcat(str, "NULL");
+				}
+				else
+				{
+					memcpy(str + strlen(str), Contact, 8);
+					Contact[11] = 0;
+					memcpy(&g_dtmf_id, Contact + 8, sizeof(g_dtmf_id));
+					sprintf(str + strlen(str), "\nID:%s", Contact + 8);
+				}
+				break;
 			}
 
-			strcpy(str, "DTMF MSG\n");
-			if (g_sub_menu_selection < DTMF_HOLD_MAX)
-				sprintf(str + strlen(str), "%d sec", g_sub_menu_selection);
-			else
-				strcat(str, "STAY ON\nSCRN");  // 60
+		#endif
 
-			break;
-
-		case MENU_DTMF_PRE:
-			strcpy(str, "DTMF BOT\nDELAY\n");
-			sprintf(str + strlen(str), "%dms", 10 * g_sub_menu_selection);
-			break;
+		#ifdef ENABLE_DTMF_TIMING_SETTINGS
+			case MENU_DTMF_PRE:
+			case MENU_DTMF_1ST_PERSIST:
+			case MENU_DTMF_HASH_PERSIST:
+			case MENU_DTMF_PERSIST:
+			case MENU_DTMF_INTERVAL:
+				strcpy(str, "DTMF ");
+				switch (g_menu_cursor)
+				{
+					case MENU_DTMF_PRE:
+						strcat(str, "BOT\nDELAY\n");
+						break;
+					case MENU_DTMF_1ST_PERSIST:
+						strcat(str, "1CODE\nPERSIST\n");
+						break;
+					case MENU_DTMF_HASH_PERSIST:
+						strcat(str, "#\nPERSIST\n");
+						break;
+					case MENU_DTMF_PERSIST:
+						strcat(str, "CODE\nPERSIST\n");
+						break;
+					case MENU_DTMF_INTERVAL:
+						strcat(str, "CODE\nINTERVAL\n");
+						break;
+				}
+				sprintf(str + strlen(str), "%dms", 10 * g_sub_menu_selection);
+				break;
+		#endif
 
 		#ifdef ENABLE_MDC1200
 			case MENU_MDC1200_MODE:
@@ -1091,33 +1183,9 @@ void UI_DisplayMenu(void)
 				break;
 		#endif
 
-		case MENU_PTT_ID:
-			strcpy(str, g_sub_menu_ptt_id[g_sub_menu_selection]);
-			channel_setting = true;
-			break;
-
 		case MENU_BAT_TXT:
 			strcpy(str, g_sub_menu_bat_text[g_sub_menu_selection]);
 			break;
-
-		case MENU_DTMF_LIST:
-		{
-			char Contact[17];
-			g_dtmf_is_contact_valid = DTMF_GetContact((int)g_sub_menu_selection - 1, Contact);
-			strcpy(str, "DTMF\n");
-			if (!g_dtmf_is_contact_valid)
-			{
-				strcat(str, "NULL");
-			}
-			else
-			{
-				memcpy(str + strlen(str), Contact, 8);
-				Contact[11] = 0;
-				memcpy(&g_dtmf_id, Contact + 8, sizeof(g_dtmf_id));
-				sprintf(str + strlen(str), "\nID:%s", Contact + 8);
-			}
-			break;
-		}
 
 		case MENU_PON_MSG:
 			strcpy(str, g_sub_menu_pwr_on_msg[g_sub_menu_selection]);
@@ -1140,6 +1208,10 @@ void UI_DisplayMenu(void)
 			case MENU_SIDE2_SHORT:
 			case MENU_SIDE2_LONG:
 				strcpy(str, g_sub_menu_side_butt[g_sub_menu_selection]);
+				#if defined(ENABLE_TX_TONE_HZ) && (ENABLE_TX_TONE_HZ > 0) 
+					if (g_sub_menu_selection == ACTION_OPT_TX_TONE)
+						sprintf(str + strlen(str), "\n%uHz", ENABLE_TX_TONE_HZ);
+				#endif
 				break;
 		#endif
 
@@ -1239,10 +1311,8 @@ void UI_DisplayMenu(void)
 		#endif
 
 		#ifdef ENABLE_FM_DEV_CAL_MENU
-			case MENU_TX_FM_DEV_CAL_N:		// narrow FM deviation calibration
-			case MENU_TX_FM_DEV_CAL_W:      // wide FM deviation calibration
-				strcpy(str, "FM DEV ");
-				strcat(str, (g_menu_cursor == MENU_TX_FM_DEV_CAL_N) ? "N\n" : "W\n");
+			case MENU_TX_FM_DEV_CAL:
+				strcpy(str, "FM DEV\n");
 				sprintf(str + strlen(str), g_in_sub_menu ? "> %04d" : "%d", g_sub_menu_selection);
 				if (g_current_function == FUNCTION_TRANSMIT)
 					BK4819_set_TX_deviation(g_sub_menu_selection);
@@ -1394,17 +1464,23 @@ void UI_DisplayMenu(void)
 		if (strlen(g_eeprom.config.setting.dtmf.key_down_code) > 8)
 			UI_PrintString(g_eeprom.config.setting.dtmf.key_down_code + 8, sub_menu_x1, sub_menu_x2, 4, 8);
 
-	if (g_menu_cursor == MENU_RX_CTCSS ||
+	if (
+		#ifdef ENABLE_DTMF_CALLING
+			g_menu_cursor == MENU_DTMF_LIST ||
+		#endif
+		g_menu_cursor == MENU_RX_CTCSS ||
 	    g_menu_cursor == MENU_TX_CTCSS ||
 	    g_menu_cursor == MENU_RX_CDCSS ||
-	    g_menu_cursor == MENU_TX_CDCSS ||
-	    g_menu_cursor == MENU_DTMF_LIST)
+	    g_menu_cursor == MENU_TX_CDCSS)
 	{
 		if (g_in_sub_menu)
 		{
-			unsigned int Offset;
+			#ifdef ENABLE_DTMF_CALLING
+				const unsigned int Offset = (g_menu_cursor == MENU_DTMF_LIST) ? 2 : 3;
+			#else
+				const unsigned int Offset = 3;
+			#endif
 			NUMBER_ToDigits(g_sub_menu_selection, str);
-			Offset = (g_menu_cursor == MENU_DTMF_LIST) ? 2 : 3;
 			UI_Displaysmall_digits(Offset, str + (8 - Offset), 105, 0, false);
 		}
 	}

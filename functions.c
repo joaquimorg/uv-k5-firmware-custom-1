@@ -56,7 +56,9 @@ void FUNCTION_Init(void)
 	else
 		g_current_code_type = CODE_TYPE_CONTINUOUS_TONE;
 
-	DTMF_clear_RX();
+	#ifdef ENABLE_DTMF_CALLING
+		DTMF_clear_RX();
+	#endif
 
 	g_cxcss_tail_found = false;
 	g_cdcss_lost       = false;
@@ -123,12 +125,14 @@ void FUNCTION_Select(function_type_t Function)
 					g_fm_restore_tick_10ms = g_eeprom.config.setting.scan_hold_time * 50;
 			#endif
 
-			if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT ||
-			    g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED ||
-				g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
-			{
-				g_dtmf_auto_reset_time_500ms = g_eeprom.config.setting.dtmf.auto_reset_time * 2;
-			}
+			#ifdef ENABLE_DTMF_CALLING
+				if (g_dtmf_call_state == DTMF_CALL_STATE_CALL_OUT ||
+					g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED ||
+					g_dtmf_call_state == DTMF_CALL_STATE_RECEIVED_STAY)
+				{
+					g_dtmf_auto_reset_time_500ms = g_eeprom.config.setting.dtmf.auto_reset_time * 2;
+				}
+			#endif
 
 			return;
 
@@ -137,7 +141,7 @@ void FUNCTION_Select(function_type_t Function)
 				UART_printf("func new receive %u\r\n", g_rx_vfo->freq_config_rx.frequency);
 			#endif
 			break;
-			
+
 		case FUNCTION_RECEIVE:
 			#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
 				UART_printf("func receive %u\r\n", g_rx_vfo->freq_config_rx.frequency);
@@ -154,13 +158,13 @@ void FUNCTION_Select(function_type_t Function)
 				g_monitor_enabled = false;
 				GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
 			}
-			
+
 			g_power_save_tick_10ms = g_eeprom.config.setting.battery_save_ratio * 10;
 			g_power_save_expired   = false;
 
 			g_rx_idle_mode = true;
 
-			BK4819_DisableVox();			
+			BK4819_DisableVox();
 			BK4819_Sleep();
 
 			BK4819_set_GPIO_pin(BK4819_GPIO0_PIN28_RX_ENABLE, false);
@@ -178,20 +182,14 @@ void FUNCTION_Select(function_type_t Function)
 			g_tx_timer_tick_500ms = 0;
 			g_tx_timeout_reached  = false;
 			g_flag_end_tx         = false;
-		
+
 			g_rtte_count_down = 0;
-		
-			#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+
+			#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
 				if (g_alarm_state == ALARM_STATE_OFF)
 			#endif
 			{
-				if (g_eeprom.config.setting.tx_timeout == 0)
-					g_tx_timer_tick_500ms = 60;   // 30 sec
-				else
-				if (g_eeprom.config.setting.tx_timeout < (ARRAY_SIZE(g_sub_menu_tx_timeout) - 1))
-					g_tx_timer_tick_500ms = 120 * g_eeprom.config.setting.tx_timeout;  // minutes
-				else
-					g_tx_timer_tick_500ms = 120 * 15;  // 15 minutes
+				g_tx_timer_tick_500ms = tx_timeout_secs[g_eeprom.config.setting.tx_timeout] * 2;
 			}
 
 			if (g_eeprom.config.setting.backlight_on_tx_rx == 1 || g_eeprom.config.setting.backlight_on_tx_rx == 3)
@@ -213,7 +211,9 @@ void FUNCTION_Select(function_type_t Function)
 			BK4819_DisableDTMF();
 
 			// clear the DTMF RX buffer
-			DTMF_clear_RX();
+			#ifdef ENABLE_DTMF_CALLING
+				DTMF_clear_RX();
+			#endif
 
 			#ifdef ENABLE_DTMF_LIVE_DECODER
 				// clear the DTMF RX live decoder buffer
@@ -239,16 +239,16 @@ void FUNCTION_Select(function_type_t Function)
 //				UART_printf("function tx %u %s\r\n", g_dtmf_reply_state, g_dtmf_string);
 			#endif
 
-			#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+			#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
 				if (g_alarm_state != ALARM_STATE_OFF)
 				{
-					#ifdef ENABLE_TX1750
-						if (g_alarm_state == ALARM_STATE_TX1750)
-							BK4819_TransmitTone(true, 1750);
+					#if (ENABLE_TX_TONE_HZ > 0)
+						if (g_alarm_state == ALARM_STATE_TX_TONE)
+							BK4819_tx_tone(true, ENABLE_TX_TONE_HZ, 28);
 					#endif
 					#ifdef ENABLE_ALARM
-						if (g_alarm_state == ALARM_STATE_TXALARM)
-							BK4819_TransmitTone(true, 500);
+						if (g_alarm_state == ALARM_STATE_TX_ALARM)
+							BK4819_tx_tone(true, 500, 28);
 					#endif
 
 					SYSTEM_DelayMs(2);
@@ -258,44 +258,101 @@ void FUNCTION_Select(function_type_t Function)
 					#ifdef ENABLE_ALARM
 						g_alarm_tone_counter_10ms = 0;
 					#endif
+
+					#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+//						UART_printf("tx tone %u\n", ENABLE_TX_TONE_HZ);
+					#endif
+
 					break;
 				}
 				else
 			#endif
-			if (!DTMF_Reply())
-			{
-			#ifdef ENABLE_MDC1200
-				if (g_current_vfo->channel.mdc1200_mode == MDC1200_MODE_BOT || g_current_vfo->channel.mdc1200_mode == MDC1200_MODE_BOTH)
+				if (!DTMF_Reply())
 				{
-					#ifdef ENABLE_MDC1200_SIDE_BEEP
-//						BK4819_start_tone(880, 10, true, true);
-//						SYSTEM_DelayMs(120);
-//						BK4819_stop_tones(true);
-					#endif
-					SYSTEM_DelayMs(30);
-
-					BK4819_send_MDC1200(MDC1200_OP_CODE_PTT_ID, 0x80, g_eeprom.config.setting.mdc1200_id, true);
-
-					#ifdef ENABLE_MDC1200_SIDE_BEEP
-						BK4819_start_tone(880, 10, true, true);
-						SYSTEM_DelayMs(120);
+				#ifdef ENABLE_MDC1200
+					if (g_current_vfo->channel.mdc1200_mode == MDC1200_MODE_BOT || g_current_vfo->channel.mdc1200_mode == MDC1200_MODE_BOTH)
+					{
+						#ifdef ENABLE_MDC1200_SIDE_BEEP
+//							BK4819_start_tone(880, 10, true, true);
+//							SYSTEM_DelayMs(120);
+//							BK4819_stop_tones(true);
+						#endif
+						SYSTEM_DelayMs(30);
+	
+						BK4819_send_MDC1200(MDC1200_OP_CODE_PTT_ID, 0x80, g_eeprom.config.setting.mdc1200_id, true);
+	
+						#ifdef ENABLE_MDC1200_SIDE_BEEP
+							BK4819_start_tone(880, 10, true, true);
+							SYSTEM_DelayMs(120);
+							BK4819_stop_tones(true);
+						#endif
+					}
+					else
+				#endif
+					if (g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_TONE_BURST)
+					{
+						#if (ENABLE_TX_TONE_HZ > 0)
+							BK4819_start_tone(ENABLE_TX_TONE_HZ, 28, true, false);
+						#else
+							BK4819_start_tone(1750, 28, true, false);
+						#endif
+						SYSTEM_DelayMs(TONE_1750_MS);
 						BK4819_stop_tones(true);
-					#endif
+					}
+					else
+					if (g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_APOLLO)
+					{
+						BK4819_start_tone(APOLLO_TONE1_HZ, 28, true, false);
+						SYSTEM_DelayMs(APOLLO_TONE_MS);
+						BK4819_stop_tones(true);
+					}
 				}
-				else
-			#endif
-				if (g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_APOLLO)
-				{
-					BK4819_start_tone(APOLLO_TONE1_HZ, 28, true, false);
-					SYSTEM_DelayMs(APOLLO_TONE_MS);
-					BK4819_stop_tones(true);
-				}
-			}
 
 			if (g_eeprom.config.setting.enable_scrambler)
 				BK4819_set_scrambler(g_current_vfo->channel.scrambler);
-			
-			break;
+
+			// 1of11 .. TEST ONLY
+//			if (g_current_vfo->p_tx->code_type == CODE_TYPE_NONE)
+//			{
+//				const uint16_t reg = BK4819_read_reg(0x2B);
+//				#if 0
+//					BK4819_write_reg(0x2B, reg | (1u << 1));               // disable TX LPF
+//					BK4819_write_reg(0x2B, reg | (1u << 2));               // disable TX HPF
+//					BK4819_write_reg(0x2B, reg | (1u << 2) | (1u << 1));   // disable TX LPF & HPF
+//				#else
+					// TX 300Hz LPF
+					//BK4819_write_reg(0x44, 0x935A);  // -3dB
+					//BK4819_write_reg(0x45, 0x2EFF);  //
+					//BK4819_write_reg(0x44, 0x920B);  // -2dB
+					//BK4819_write_reg(0x45, 0x3010);  //
+					//BK4819_write_reg(0x44, 0x91c1);  // -1dB
+					//BK4819_write_reg(0x45, 0x3040);  //
+					//BK4819_write_reg(0x44, 0x9009);  //  0dB default
+					//BK4819_write_reg(0x45, 0x31A9);  //
+					//BK4819_write_reg(0x44, 0x8F90);  // +1dB
+					//BK4819_write_reg(0x45, 0x31F3);  //
+					//BK4819_write_reg(0x44, 0x8F46);  // +2dB
+					//BK4819_write_reg(0x45, 0x31E7);  //
+					//BK4819_write_reg(0x44, 0x8ED8);  // +3dB
+					//BK4819_write_reg(0x45, 0x3232);  //
+//					  BK4819_write_reg(0x44, 0x8D8F);  // +4dB
+//					  BK4819_write_reg(0x45, 0x3359);  //
+//				#endif
+
+					// TX 3kHz HPF
+					//BK4819_write_reg(0x74, 64002);  // -1dB
+					//BK4819_write_reg(0x74, 62731);  //  0dB default
+					//BK4819_write_reg(0x74, 58908);  // +1dB
+					//BK4819_write_reg(0x74, 57122);  // +2dB
+					//BK4819_write_reg(0x74, 54317);  // +3dB
+//					  BK4819_write_reg(0x74, 52277);  // +4dB
+//				#endif
+//			}
+//			else
+//			{
+//				BK4819_write_reg(0x2B, BK4819_read_reg(0x2B) & ~(1u << 2));   // enable the 300Hz TX HPF
+//			}
+//			break;
 	}
 
 	g_power_save_pause_tick_10ms = power_save_pause_10ms;

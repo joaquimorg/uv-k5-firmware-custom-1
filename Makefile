@@ -8,19 +8,23 @@ ENABLE_CLANG                     := 0
 ENABLE_SWD                       := 0
 ENABLE_OVERLAY                   := 0
 ENABLE_LTO                       := 1
+#
 # UART Programming 2.9 kB
 ENABLE_UART                      := 1
 ENABLE_UART_DEBUG                := 0
+#
 # AirCopy 2.5 kB
 ENABLE_AIRCOPY                   := 0
 ENABLE_AIRCOPY_REMEMBER_FREQ     := 1
 ENABLE_AIRCOPY_RX_REBOOT         := 0
+#
 # FM Radio 4.2 kB
 ENABLE_FMRADIO_64_76             := 0
 ENABLE_FMRADIO_76_90             := 0
 ENABLE_FMRADIO_76_108            := 0
 ENABLE_FMRADIO_875_108           := 0
 ENABLE_FMRADIO_64_108            := 0
+#
 # NOAA 1.2 kB
 ENABLE_NOAA                      := 0
 # Voice 1.7 kB
@@ -31,7 +35,8 @@ ENABLE_VOX                       := 0
 ENABLE_VOX_MORE_SENSITIVE        := 0
 # Tx Alarm 600 B
 ENABLE_ALARM                     := 0
-ENABLE_TX1750                    := 0
+ENABLE_TX_TONE_HZ                := 1750
+#
 # MDC1200 2.8 kB
 ENABLE_MDC1200                   := 0
 ENABLE_MDC1200_SHOW_OP_ARG       := 1
@@ -40,26 +45,35 @@ ENABLE_MDC1200_SIDE_BEEP         := 1
 ENABLE_PWRON_PASSWORD            := 0
 ENABLE_RESET_AES_KEY             := 0
 ENABLE_BIG_FREQ                  := 0
+#
+# DTMF_CALLING 2.8 kB
+ENABLE_DTMF_CALLING              := 0
 ENABLE_DTMF_LIVE_DECODER         := 0
-ENABLE_SHOW_FREQS_CHAN           := 0
-# smaa bolf 580 B
+ENABLE_DTMF_TIMING_SETTINGS      := 0
+ENABLE_DTMF_CALL_FLASH_LIGHT     := 0
+# Kill and Revive 400 B
+ENABLE_DTMF_KILL_REVIVE          := 0
+#
+ENABLE_SHOW_FREQ_IN_CHAN         := 1
+# small bold 580 B
 ENABLE_SMALL_BOLD                := 1
 # smallest font 2 kB
-ENABLE_SMALLEST_FONT             := 1
+#ENABLE_SMALLEST_FONT            := 0
 # trim trailing 44 B
 ENABLE_TRIM_TRAILING_ZEROS       := 1
 ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
+#
 # Frequency calibration 188 B
-ENABLE_F_CAL_MENU                := 1
-ENABLE_FM_DEV_CAL_MENU           := 1
-ENABLE_TX_UNLOCK_MENU            := 1
+ENABLE_F_CAL_MENU                := 0
+# FM DEV CAL 250 B
+ENABLE_FM_DEV_CAL_MENU           := 0
+ENABLE_TX_UNLOCK_MENU            := 0
 #ENABLE_TX_POWER_CAL_MENU        := 0
 ENABLE_TX_POWER_FIX              := 1
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 1
 ENABLE_CONTRAST                  := 1
 ENABLE_BOOT_BEEPS                := 0
-ENABLE_DTMF_CALL_FLASH_LIGHT     := 0
 ENABLE_FLASH_LIGHT_SOS_TONE      := 0
 ENABLE_SHOW_CHARGE_LEVEL         := 0
 ENABLE_REVERSE_BAT_SYMBOL        := 0
@@ -67,20 +81,19 @@ ENABLE_FREQ_SEARCH_LNA           := 0
 ENABLE_FREQ_SEARCH_TIMEOUT       := 0
 ENABLE_CODE_SEARCH_TIMEOUT       := 0
 # scan ignore list 740 B
-ENABLE_SCAN_IGNORE_LIST          := 0
+ENABLE_SCAN_IGNORE_LIST          := 1
 # scan ranges 400 B
-ENABLE_SCAN_RANGES               := 0
-# Kill and Revive 400 B
-ENABLE_KILL_REVIVE               := 0
+ENABLE_SCAN_RANGES               := 1
 # AM Fix 800 B
 ENABLE_AM_FIX                    := 1
 ENABLE_AM_FIX_SHOW_DATA          := 0
-ENABLE_SQUELCH_MORE_SENSITIVE    := 1
-ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 0
+ENABLE_SQUELCH_MORE_SENSITIVE    := 0
+ENABLE_SQ_OPEN_WITH_UP_DN_BUTTS  := 1
 ENABLE_FASTER_CHANNEL_SCAN       := 1
 ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 0
 # Tx Audio Bar 300 B
-ENABLE_TX_AUDIO_BAR              := 1
+ENABLE_TX_AUDIO_BAR              := 0
+ENABLE_TX_AUDIO_BACKLIGHT        := 0
 # Side Button Menu 300 B
 ENABLE_SIDE_BUTT_MENU            := 0
 # Key Lock 400 B
@@ -332,11 +345,17 @@ endif
 ifeq ($(ENABLE_BIG_FREQ),1)
 	CFLAGS  += -DENABLE_BIG_FREQ
 endif
+ifeq ($(ENABLE_DTMF_CALLING),1)
+	CFLAGS  += -DENABLE_DTMF_CALLING
+endif
 ifeq ($(ENABLE_DTMF_LIVE_DECODER),1)
 	CFLAGS  += -DENABLE_DTMF_LIVE_DECODER
 endif
-ifeq ($(ENABLE_SHOW_FREQS_CHAN),1)
-	CFLAGS  += -DENABLE_SHOW_FREQS_CHAN
+ifeq ($(ENABLE_DTMF_TIMING_SETTINGS),1)
+	CFLAGS  += -DENABLE_DTMF_TIMING_SETTINGS
+endif
+ifeq ($(ENABLE_SHOW_FREQ_IN_CHAN),1)
+	CFLAGS  += -DENABLE_SHOW_FREQ_IN_CHAN
 endif
 ifeq ($(ENABLE_SMALL_BOLD),1)
 	CFLAGS  += -DENABLE_SMALL_BOLD
@@ -368,8 +387,10 @@ endif
 ifeq ($(ENABLE_ALARM),1)
 	CFLAGS  += -DENABLE_ALARM
 endif
-ifeq ($(ENABLE_TX1750),1)
-	CFLAGS  += -DENABLE_TX1750
+ifdef ENABLE_TX_TONE_HZ
+	ifneq ($(ENABLE_TX_TONE_HZ), 0)
+		CFLAGS += -DENABLE_TX_TONE_HZ=$(ENABLE_TX_TONE_HZ)
+	endif
 endif
 ifeq ($(ENABLE_MDC1200),1)
 	CFLAGS  += -DENABLE_MDC1200
@@ -434,8 +455,8 @@ endif
 ifeq ($(ENABLE_SCAN_RANGES),1)
 	CFLAGS  += -DENABLE_SCAN_RANGES
 endif
-ifeq ($(ENABLE_KILL_REVIVE),1)
-	CFLAGS  += -DENABLE_KILL_REVIVE
+ifeq ($(ENABLE_DTMF_KILL_REVIVE),1)
+	CFLAGS  += -DENABLE_DTMF_KILL_REVIVE
 endif
 ifeq ($(ENABLE_FREQ_SEARCH_LNA),1)
 	CFLAGS  += -DENABLE_FREQ_SEARCH_LNA
@@ -466,6 +487,9 @@ ifeq ($(ENABLE_backlight_ON_RX),1)
 endif
 ifeq ($(ENABLE_TX_AUDIO_BAR),1)
 	CFLAGS  += -DENABLE_TX_AUDIO_BAR
+endif
+ifeq ($(ENABLE_TX_AUDIO_BACKLIGHT),1)
+	CFLAGS  += -DENABLE_TX_AUDIO_BACKLIGHT
 endif
 ifeq ($(ENABLE_COPY_CHAN_TO_VFO_TO_CHAN),1)
 	CFLAGS  += -DENABLE_COPY_CHAN_TO_VFO_TO_CHAN

@@ -144,7 +144,7 @@ void SETTINGS_read_eeprom(void)
 
 	g_eeprom.config.setting.call1            = IS_USER_CHANNEL(g_eeprom.config.setting.call1)  ? g_eeprom.config.setting.call1 : USER_CHANNEL_FIRST;
 	g_eeprom.config.setting.squelch_level    = (g_eeprom.config.setting.squelch_level < 10)    ? g_eeprom.config.setting.squelch_level : 1;
-	g_eeprom.config.setting.tx_timeout       = (g_eeprom.config.setting.tx_timeout < 11)       ? g_eeprom.config.setting.tx_timeout : 1;
+	g_eeprom.config.setting.tx_timeout       = (g_eeprom.config.setting.tx_timeout < ARRAY_SIZE(tx_timeout_secs)) ? ARRAY_SIZE(tx_timeout_secs) : 1;
 	g_eeprom.config.setting.noaa_auto_scan   = (g_eeprom.config.setting.noaa_auto_scan < 2)    ? g_eeprom.config.setting.noaa_auto_scan : 0;
 #ifdef ENABLE_KEYLOCK
 	g_eeprom.config.setting.key_lock         = (g_eeprom.config.setting.key_lock < 2)          ? g_eeprom.config.setting.key_lock : 0;
@@ -229,12 +229,14 @@ void SETTINGS_read_eeprom(void)
 	g_eeprom.config.setting.dtmf.group_call_code         = DTMF_ValidateCodes((char *)(&g_eeprom.config.setting.dtmf.group_call_code), 1) ? g_eeprom.config.setting.dtmf.group_call_code : '#';
 	g_eeprom.config.setting.dtmf.decode_response         = (g_eeprom.config.setting.dtmf.decode_response < 4) ? g_eeprom.config.setting.dtmf.decode_response : DTMF_DEC_RESPONSE_RING;
 	g_eeprom.config.setting.dtmf.auto_reset_time         = (g_eeprom.config.setting.dtmf.auto_reset_time <= DTMF_HOLD_MAX) ? g_eeprom.config.setting.dtmf.auto_reset_time : (g_eeprom.config.setting.dtmf.auto_reset_time >= DTMF_HOLD_MIN) ? g_eeprom.config.setting.dtmf.auto_reset_time : DTMF_HOLD_MAX;
-	g_eeprom.config.setting.dtmf.preload_time            = (g_eeprom.config.setting.dtmf.preload_time < 10) ? g_eeprom.config.setting.dtmf.preload_time : 20;
-	g_eeprom.config.setting.dtmf.first_code_persist_time = (g_eeprom.config.setting.dtmf.first_code_persist_time < 10) ? g_eeprom.config.setting.dtmf.first_code_persist_time : 7;
-	g_eeprom.config.setting.dtmf.hash_code_persist_time  = (g_eeprom.config.setting.dtmf.hash_code_persist_time < 10) ? g_eeprom.config.setting.dtmf.hash_code_persist_time : 7;
-	g_eeprom.config.setting.dtmf.code_persist_time       = (g_eeprom.config.setting.dtmf.code_persist_time < 10) ? g_eeprom.config.setting.dtmf.code_persist_time : 7;
-	g_eeprom.config.setting.dtmf.code_interval_time      = (g_eeprom.config.setting.dtmf.code_interval_time < 10) ? g_eeprom.config.setting.dtmf.code_interval_time : 7;
-	#ifdef ENABLE_KILL_REVIVE
+#endif
+	g_eeprom.config.setting.dtmf.preload_time            = (g_eeprom.config.setting.dtmf.preload_time            < 3 || g_eeprom.config.setting.dtmf.preload_time            > 99) ? 30 : g_eeprom.config.setting.dtmf.preload_time;
+	g_eeprom.config.setting.dtmf.first_code_persist_time = (g_eeprom.config.setting.dtmf.first_code_persist_time < 5 || g_eeprom.config.setting.dtmf.first_code_persist_time > 20) ? 10 : g_eeprom.config.setting.dtmf.first_code_persist_time;
+	g_eeprom.config.setting.dtmf.hash_code_persist_time  = (g_eeprom.config.setting.dtmf.hash_code_persist_time  < 5 || g_eeprom.config.setting.dtmf.hash_code_persist_time  > 20) ? 10 : g_eeprom.config.setting.dtmf.hash_code_persist_time;
+	g_eeprom.config.setting.dtmf.code_persist_time       = (g_eeprom.config.setting.dtmf.code_persist_time       < 5 || g_eeprom.config.setting.dtmf.code_persist_time       > 20) ? 10 : g_eeprom.config.setting.dtmf.code_persist_time;
+	g_eeprom.config.setting.dtmf.code_interval_time      = (g_eeprom.config.setting.dtmf.code_interval_time      < 5 || g_eeprom.config.setting.dtmf.code_interval_time      > 20) ? 10 : g_eeprom.config.setting.dtmf.code_interval_time;
+#if 0
+	#ifdef ENABLE_DTMF_KILL_REVIVE
 		g_eeprom.config.setting.dtmf.permit_remote_kill  = (g_eeprom.config.setting.dtmf.permit_remote_kill <   2) ? g_eeprom.config.setting.dtmf.permit_remote_kill : 0;
 	#else
 		g_eeprom.config.setting.dtmf.permit_remote_kill  = 0;
@@ -247,7 +249,7 @@ void SETTINGS_read_eeprom(void)
 		strcpy(g_eeprom.config.setting.dtmf.ani_id, "123");
 	}
 
-	#ifdef ENABLE_KILL_REVIVE
+	#ifdef ENABLE_DTMF_KILL_REVIVE
 		// 0EE8..0EEF
 		if (!DTMF_ValidateCodes(g_eeprom.config.setting.dtmf.kill_code, sizeof(g_eeprom.config.setting.dtmf.kill_code)))
 		{
@@ -306,7 +308,7 @@ void SETTINGS_read_eeprom(void)
 	// 0F40..0F47
 	g_eeprom.config.setting.freq_lock = (g_eeprom.config.setting.freq_lock < FREQ_LOCK_LAST) ? g_eeprom.config.setting.freq_lock : FREQ_LOCK_NORMAL;
 //	g_eeprom.config.setting.enable_tx_350       = (g_eeprom.config.setting.enable_tx_350 < 2) ? g_eeprom.config.setting.enable_tx_350 : false;
-	#ifdef ENABLE_KILL_REVIVE
+	#ifdef ENABLE_DTMF_KILL_REVIVE
 		g_eeprom.config.setting.radio_disabled  = (g_eeprom.config.setting.radio_disabled < 2) ? g_eeprom.config.setting.radio_disabled : 0;
 	#else
 		g_eeprom.config.setting.radio_disabled  = 0;
@@ -330,7 +332,7 @@ void SETTINGS_read_eeprom(void)
 
 #else
 
-	#ifndef ENABLE_KILL_REVIVE
+	#ifndef ENABLE_DTMF_KILL_REVIVE
 		memset(g_eeprom.config.setting.dtmf.kill_code,   0, sizeof(g_eeprom.config.setting.dtmf.kill_code));
 		memset(g_eeprom.config.setting.dtmf.revive_code, 0, sizeof(g_eeprom.config.setting.dtmf.revive_code));
 
@@ -342,7 +344,7 @@ void SETTINGS_read_eeprom(void)
 		memset(&g_eeprom.config.setting.aes_key, 0xff, sizeof(g_eeprom.config.setting.aes_key));
 	#endif
 
-	#ifndef ENABLE_KILL_REVIVE
+	#ifndef ENABLE_DTMF_KILL_REVIVE
 		g_eeprom.config.setting.radio_disabled  = 0;
 	#endif
 
@@ -397,10 +399,8 @@ void SETTINGS_read_eeprom(void)
 //	memset(&g_eeprom.calib.unused3, 0xff, sizeof(g_eeprom.calib.unused3));
 
 //	#ifdef ENABLE_FM_DEV_CAL_MENU
-		if (g_eeprom.calib.deviation_narrow < FM_DEV_LIMIT_LOWER_NARROW || g_eeprom.calib.deviation_narrow > FM_DEV_LIMIT_UPPER_NARROW)
-			g_eeprom.calib.deviation_narrow = FM_DEV_LIMIT_DEFAULT_NARROW;
-		if (g_eeprom.calib.deviation_wide < FM_DEV_LIMIT_LOWER_WIDE || g_eeprom.calib.deviation_wide > FM_DEV_LIMIT_UPPER_WIDE)
-			g_eeprom.calib.deviation_wide = FM_DEV_LIMIT_DEFAULT_WIDE;
+		if (g_eeprom.calib.deviation < FM_DEV_LIMIT_LOWER || g_eeprom.calib.deviation > FM_DEV_LIMIT_UPPER)
+			g_eeprom.calib.deviation = FM_DEV_LIMIT_DEFAULT;
 //	#endif
 
 	if (g_eeprom.calib.battery[0] >= 5000)
@@ -448,7 +448,7 @@ void SETTINGS_save(void)
 		memset(&g_eeprom.config.setting.power_on_password, 0xff, sizeof(g_eeprom.config.setting.power_on_password));
 	#endif
 
-	#if !defined(ENABLE_ALARM) && !defined(ENABLE_TX1750)
+	#if !defined(ENABLE_ALARM) && (!defined(ENABLE_TX_TONE_HZ) || (ENABLE_TX_TONE_HZ == 0))
 		g_eeprom.config.setting.alarm_mode = 0;
 	#endif
 
@@ -459,7 +459,7 @@ void SETTINGS_save(void)
 		memset(&g_eeprom.config.setting.unused8, 0xff, sizeof(g_eeprom.config.setting.unused8));
 	#endif
 
-	#ifndef ENABLE_KILL_REVIVE
+	#ifndef ENABLE_DTMF_KILL_REVIVE
 		g_eeprom.config.setting.radio_disabled = 0;
 	#endif
 

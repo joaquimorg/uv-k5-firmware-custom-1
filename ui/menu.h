@@ -95,17 +95,27 @@ enum
 	MENU_S_LIST,
 	MENU_SLIST1,
 	MENU_SLIST2,
+#ifdef ENABLE_DTMF_CALLING
 	MENU_ANI_ID,
+#endif
 	MENU_UP_CODE,
 	MENU_DN_CODE,
 	MENU_DTMF_ST,
+#ifdef ENABLE_DTMF_CALLING
 	MENU_DTMF_HOLD,
-	MENU_DTMF_PRE,
 	MENU_DTMF_LIST,
 	MENU_DTMF_RSP,
 	MENU_DTMF_DCD,
+#endif
 #ifdef ENABLE_DTMF_LIVE_DECODER
 	MENU_DTMF_LIVE_DEC,
+#endif
+#ifdef ENABLE_DTMF_TIMING_SETTINGS
+	MENU_DTMF_PRE,
+	MENU_DTMF_1ST_PERSIST,
+	MENU_DTMF_HASH_PERSIST,
+	MENU_DTMF_PERSIST,
+	MENU_DTMF_INTERVAL,
 #endif
 #ifdef ENABLE_MDC1200
 	MENU_MDC1200_MODE,
@@ -154,8 +164,7 @@ enum
 #endif
 
 #ifdef ENABLE_FM_DEV_CAL_MENU
-	MENU_TX_FM_DEV_CAL_N,  // narrow FM deviation calibration
-	MENU_TX_FM_DEV_CAL_W,  // wide FM deviation calibration
+	MENU_TX_FM_DEV_CAL,  // FM deviation calibration
 #endif
 
 #ifdef ENABLE_F_CAL_MENU
@@ -184,7 +193,6 @@ extern const char         g_sub_menu_shift_dir[3][4];
 extern const char         g_sub_menu_bandwidth[2][7];
 extern const char         g_sub_menu_off_on[2][4];
 extern const char         g_sub_menu_bat_save[5][9];
-extern const char         g_sub_menu_tx_timeout[11][7];
 extern const char         g_sub_menu_dual_watch[3][10];
 extern const char         g_sub_menu_cross_vfo[3][10];
 #ifdef ENABLE_VOICE
@@ -195,8 +203,10 @@ extern const char         g_sub_menu_mem_disp[4][12];
 #ifdef ENABLE_ALARM
 	extern const char     g_sub_menu_alarm_mode[2][5];
 #endif
-extern const char         g_sub_menu_dtmf_rsp[4][9];
-extern const char         g_sub_menu_ptt_id[5][16];
+#ifdef ENABLE_DTMF_CALLING
+	extern const char     g_sub_menu_dtmf_rsp[4][9];
+#endif
+extern const char         g_sub_menu_ptt_id[6][17];
 #ifdef ENABLE_MDC1200
 	extern const char     g_sub_menu_mdc1200_mode[4][5];
 #endif

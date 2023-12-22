@@ -126,7 +126,7 @@ void BK4819_Init(void)
 	BK4819_write_reg(0x11, 0x027B);
 	BK4819_write_reg(0x10, 0x007A);
 	BK4819_write_reg(0x14, 0x0019);
-	BK4819_write_reg(0x49, 0x2A38);
+	BK4819_write_reg(0x49, 0x2A38);  // 00 1010100 0111000
 	BK4819_write_reg(0x7B, 0x8420);
 
 	BK4819_write_reg(0x1E, 0x4C58);  // ???
@@ -136,6 +136,41 @@ void BK4819_Init(void)
 	BK4819_write_reg(0x4B, 0x7102);  // AF gains
 	BK4819_write_reg(0x26, 0x13A0);  // ???
 #endif
+
+	#if 0
+	{
+		const uint16_t reg = BK4819_read_reg(0x2B);
+		BK4819_write_reg(0x2B, reg | (1u <<  9));               // disable RX LPF
+		//BK4819_write_reg(0x2B, reg | (1u << 10));               // disable RX HPF
+		//BK4819_write_reg(0x2B, reg | (1u << 10) | (1u << 9));   // disable RX LPF & HPF
+	
+		// RX 300Hz LPF
+		//BK4819_write_reg(0x54, 0x935A);  // -3dB
+		//BK4819_write_reg(0x55, 0x2EFF);  //
+		//BK4819_write_reg(0x54, 0x920B);  // -2dB
+		//BK4819_write_reg(0x55, 0x3010);  //
+		//BK4819_write_reg(0x54, 0x91c1);  // -1dB
+		//BK4819_write_reg(0x55, 0x3040);  //
+		//BK4819_write_reg(0x54, 0x9009);  //  0dB default
+		//BK4819_write_reg(0x55, 0x31A9);  //
+		//BK4819_write_reg(0x54, 0x8F90);  // +1dB
+		//BK4819_write_reg(0x55, 0x31F3);  //
+		//BK4819_write_reg(0x54, 0x8F46);  // +2dB
+		//BK4819_write_reg(0x55, 0x31E7);  //
+		//BK4819_write_reg(0x54, 0x8ED8);  // +3dB
+		//BK4819_write_reg(0x55, 0x3232);  //
+		BK4819_write_reg(0x54, 0x8D8F);  // +4dB
+		BK4819_write_reg(0x55, 0x3359);  //
+	
+		// TX 3kHz HPF
+		//BK4819_write_reg(0x75, 64002);  // -1dB
+		//BK4819_write_reg(0x75, 62731);  //  0dB default
+		//BK4819_write_reg(0x75, 58908);  // +1dB
+		//BK4819_write_reg(0x75, 57122);  // +2dB
+		//BK4819_write_reg(0x75, 54317);  // +3dB
+		BK4819_write_reg(0x75, 52277);  // +4dB
+	}
+	#endif
 }
 
 static uint16_t BK4819_read_16(void)
@@ -407,7 +442,6 @@ void BK4819_EnableVox(uint16_t VoxEnableThreshold, uint16_t VoxDisableThreshold)
 void BK4819_set_TX_deviation(uint16_t deviation)
 {
 //	const uint8_t scrambler = (BK4819_read_reg(0x31) >> 1) & 1u;
-//	uint16_t deviation = narrow ? 900 : 1232;
 //	if (scrambler)
 //		deviation -= 200;
 	if (deviation > 4095)
@@ -745,6 +779,8 @@ void BK4819_SetCompander(const unsigned int mode)
 	if (mode == COMPAND_OFF)
 	{	// disable
 		BK4819_write_reg(0x31, r31 & ~(1ul << 3));
+		BK4819_write_reg(0x29, 0);
+		BK4819_write_reg(0x28, 0);
 		return;
 	}
 
@@ -834,6 +870,51 @@ void BK4819_EnableDTMF(void)
 		(15u       << BK4819_REG_24_SHIFT_MAX_SYMBOLS));     // 0 ~ 15
 }
 
+void BK4819_tx_tone(const bool side_tone, const unsigned int frequency, const unsigned int level)
+{
+	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
+	SYSTEM_DelayMs(1);
+	BK4819_SetAF(BK4819_AF_MUTE);
+	BK4819_EnterTxMute();
+
+	// REG_70
+	//
+	// <15>   0 Enable TONE1
+	//        1 = Enable
+	//        0 = Disable
+	//
+	// <14:8> 0 TONE1 tuning gain
+	//        0 ~ 127
+	//
+	// <7>    0 Enable TONE2
+	//        1 = Enable
+	//        0 = Disable
+	//
+	// <6:0>  0 TONE2/FSK amplitude
+	//        0 ~ 127
+	//
+	// set the tone amplitude
+	//
+//	BK4819_write_reg(0x70, BK4819_REG_70_MASK_ENABLE_TONE1 | (96u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
+//	BK4819_write_reg(0x70, BK4819_REG_70_MASK_ENABLE_TONE1 | (28u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
+	BK4819_write_reg(0x70, BK4819_REG_70_MASK_ENABLE_TONE1 | ((level & 0x7f) << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
+
+	BK4819_write_reg(0x71, scale_freq(frequency));
+
+	BK4819_EnableTXLink();
+
+	SYSTEM_DelayMs(50);
+
+	BK4819_ExitTxMute();
+
+	if (side_tone)
+	{
+		BK4819_SetAF(BK4819_AF_BEEP);
+		SYSTEM_DelayMs(1);
+		GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
+	}
+}
+
 void BK4819_start_tone(const uint16_t frequency, const unsigned int level, const bool tx, const bool tx_mute)
 {
 	SYSTEM_DelayMs(1);
@@ -848,7 +929,6 @@ void BK4819_start_tone(const uint16_t frequency, const unsigned int level, const
 	BK4819_write_reg(0x70, BK4819_REG_70_ENABLE_TONE1 | ((level & 0x7f) << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
 
 	BK4819_write_reg(0x30, 0);
-
 	if (!tx)
 	{
 		BK4819_write_reg(0x30,
@@ -898,6 +978,10 @@ void BK4819_start_tone(const uint16_t frequency, const unsigned int level, const
 
 void BK4819_stop_tones(const bool tx)
 {
+	#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+		UART_printf("stop tones\n");
+	#endif
+
 	SYSTEM_DelayMs(1);
 
 	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
@@ -1258,42 +1342,6 @@ void BK4819_PlayDTMFString(const char *pString, bool bDelayFirst, uint16_t First
 	}
 }
 
-void BK4819_TransmitTone(bool bLocalLoopback, uint32_t Frequency)
-{
-	BK4819_EnterTxMute();
-
-	// REG_70
-	//
-	// <15>   0 Enable TONE1
-	//        1 = Enable
-	//        0 = Disable
-	//
-	// <14:8> 0 TONE1 tuning gain
-	//        0 ~ 127
-	//
-	// <7>    0 Enable TONE2
-	//        1 = Enable
-	//        0 = Disable
-	//
-	// <6:0>  0 TONE2/FSK amplitude
-	//        0 ~ 127
-	//
-	// set the tone amplitude
-	//
-//	BK4819_write_reg(0x70, BK4819_REG_70_MASK_ENABLE_TONE1 | (96u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
-	BK4819_write_reg(0x70, BK4819_REG_70_MASK_ENABLE_TONE1 | (28u << BK4819_REG_70_SHIFT_TONE1_TUNING_GAIN));
-
-	BK4819_write_reg(0x71, scale_freq(Frequency));
-
-	BK4819_SetAF(bLocalLoopback ? BK4819_AF_BEEP : BK4819_AF_MUTE);
-
-	BK4819_EnableTXLink();
-
-	SYSTEM_DelayMs(50);
-
-	BK4819_ExitTxMute();
-}
-
 void BK4819_disable_sub_audible(void)
 {
 	BK4819_write_reg(0x51, 0);
@@ -1304,9 +1352,8 @@ void BK4819_config_sub_audible(void)
 //	#ifdef ENABLE_CTCSS_TAIL_PHASE_SHIFT
 //		BK4819_gen_tail(2);    // 180 deg
 //	#else
-//		BK4819_gen_tail(4);
-		BK4819_write_reg(0x52, (0u << 15) | (0u << 13) | (0u << 12) | (10u << 6) | (15u << 0)); // 0x028F);  // 0 00 0 001010 001111
-//	#endif
+		BK4819_gen_tail(5);
+ //	#endif
 }
 
 // freq_10Hz is CTCSS Hz * 10
@@ -1354,7 +1401,7 @@ void BK4819_gen_tail(const unsigned int tail)
 	//         2 = CTCSS0 180° phase shift
 	//         3 = CTCSS0 240° phase shift
 	//
-	// <12>    CTCSS Detection Threshold Mode
+	// <12>    0 CTCSS Detection Threshold Mode
 	//         1 = ~0.1%
 	//         0 =  0.1Hz
 	//
@@ -1365,14 +1412,14 @@ void BK4819_gen_tail(const unsigned int tail)
 	uint16_t tail_phase_shift            = 1;
 	uint16_t ctcss_tail_mode_selection   = 0;
 	uint16_t ctcss_detect_threshold_mode = 0;
-	#if 0
+	#if 1
 		// original QS setting
-		uint16_t ctcss_found_threshold       = 10;
-		uint16_t ctcss_lost_threshold        = 15;
+		uint16_t ctcss_found_threshold   = 10;
+		uint16_t ctcss_lost_threshold    = 15;
 	#else
 		// increase it to help reduce false detections when doing CTCSS/CDCSS searching
-		uint16_t ctcss_found_threshold       = 15;
-		uint16_t ctcss_lost_threshold        = 23;
+		uint16_t ctcss_found_threshold   = 13;
+		uint16_t ctcss_lost_threshold    = 18;
 	#endif
 
 	switch (tail)
@@ -1394,6 +1441,9 @@ void BK4819_gen_tail(const unsigned int tail)
 			tail_phase_shift      = 0;
 			ctcss_found_threshold = 17;
 			ctcss_lost_threshold  = 47;
+			break;
+		case 5:
+			tail_phase_shift = 0;
 			break;
 	}
 
@@ -1478,7 +1528,7 @@ void BK4819_set_CTCSS_freq(const uint32_t control_word)
 			( 0u <<  9) |     // Auto CDCSS BW Mode           1 = disable   0 = enable
 			( 0u <<  8) |     // Auto CTCSS BW Mode           1 = disable   0 = enable
 			( 0u <<  7) |     // ???
-			(74u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
+			(51u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
 	}
 
 	// REG_07 <15:0>
@@ -1523,7 +1573,7 @@ void BK4819_enable_CDCSS_tail(void)
 		( 0u <<  9) |     // Auto CDCSS BW Mode           1 = disable   0 = enable
 		( 0u <<  8) |     // Auto CTCSS BW Mode           1 = disable   0 = enable
 		( 0u <<  7) |     // ???
-		(74u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
+		(51u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
 }
 
 void BK4819_enable_CTCSS_tail(void)
@@ -1546,7 +1596,7 @@ void BK4819_enable_CTCSS_tail(void)
 		( 0u <<  9) |     // Auto CDCSS BW Mode           1 = disable   0 = enable
 		( 0u <<  8) |     // Auto CTCSS BW Mode           1 = disable   0 = enable
 		( 0u <<  7) |     // ???
-		(74u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
+		(51u <<  0));     // CTCSS/CDCSS TX gain 1        0 ~ 127
 }
 
 uint16_t BK4819_GetRSSI(void)

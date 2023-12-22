@@ -21,6 +21,26 @@ const uint8_t obfuscate_array[16] = {
 	0x16, 0x6C, 0x14, 0xE6, 0x2E, 0x91, 0x0D, 0x40, 0x21, 0x35, 0xD5, 0x40, 0x13, 0x03, 0xE9, 0x80
 };
 
+const uint16_t tx_timeout_secs[16] =
+{
+	(60 *  0) +  0,
+	(60 *  0) + 30,
+	(60 *  1) +  0,
+	(60 *  1) + 30,
+	(60 *  2) +  0,
+	(60 *  2) + 30,
+	(60 *  3) +  0,
+	(60 *  3) + 30,
+	(60 *  4) +  0,
+	(60 *  4) + 30,
+	(60 *  5) +  0,
+	(60 *  6) +  0,
+	(60 *  7) +  0,
+	(60 *  8) +  0,
+	(60 * 10) +  0,
+	(60 * 15) +  0
+};
+
 // ***********************************************
 
 const uint8_t         fm_resume_500ms                  =  2500 / 500;   // 2.5 seconds
@@ -143,7 +163,7 @@ uint8_t               g_vfo_rssi_bar_level[2];
 
 uint8_t               g_reduced_service;
 uint8_t               g_battery_voltage_index;
-#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+#if defined(ENABLE_ALARM) || defined(ENABLE_TX_TONE_HZ)
 	alarm_state_t     g_alarm_state;
 #endif
 uint16_t              g_menu_tick_10ms;
@@ -206,10 +226,8 @@ scan_state_dir_t      g_scan_state_dir;
 uint8_t               g_rx_vfo_num;
 bool                  g_rx_vfo_is_active;
 
-#ifdef ENABLE_ALARM
-	uint16_t          g_alarm_tone_counter_10ms;
-	uint16_t          g_alarm_running_counter_10ms;
-#endif
+uint16_t              g_alarm_tone_counter_10ms;
+uint16_t              g_alarm_running_counter_10ms;
 
 uint8_t               g_menu_list_count;
 

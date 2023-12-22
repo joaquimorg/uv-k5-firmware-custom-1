@@ -515,35 +515,40 @@ void RADIO_ConfigureSquelch(vfo_info_t *p_vfo)
 				glitch_open = (glitch_open * 2) / 1;
 			#endif
 
+			// *********
+			// ensure the 'close' threshold is lower than the 'open' threshold
+			// ie, maintain a minimum level of hysteresis
+	
+			rssi_close   = (rssi_open   * 4) / 6;
+			noise_close  = (noise_open  * 6) / 4;
+			glitch_close = (glitch_open * 6) / 4;
+	
+			if (rssi_open  <  8)
+				rssi_open  =  8;
+			if (rssi_close > (rssi_open   - 8))
+				rssi_close =  rssi_open   - 8;
+	
+			if (noise_open  > (127 - 4))
+				noise_open  =  127 - 4;
+			if (noise_close < (noise_open  + 4))
+				noise_close =  noise_open  + 4;
+	
+			if (glitch_open  > (255 - 8))
+				glitch_open  =  255 - 8;
+			if (glitch_close < (glitch_open + 8))
+				glitch_close =  glitch_open + 8;
+
 		#else
-			// more sensitive .. use when RX bandwidths are fixed (no weak signal auto adjust)
+			// a little more sensitive
+
 			rssi_open   = (rssi_open   * 3) / 4;
 			noise_open  = (noise_open  * 4) / 3;
 			glitch_open = (glitch_open * 4) / 3;
+
+			rssi_close   = (rssi_close   * 3) / 4;
+			noise_close  = (noise_close  * 4) / 3;
+			glitch_close = (glitch_close * 4) / 3;
 		#endif
-
-		// *********
-		// ensure the 'close' threshold is lower than the 'open' threshold
-		// ie, maintain a minimum level of hysteresis
-
-		rssi_close   = (rssi_open   * 4) / 6;
-		noise_close  = (noise_open  * 6) / 4;
-		glitch_close = (glitch_open * 6) / 4;
-
-		if (rssi_open  <  8)
-			rssi_open  =  8;
-		if (rssi_close > (rssi_open   - 8))
-			rssi_close =  rssi_open   - 8;
-
-		if (noise_open  > (127 - 4))
-			noise_open  =  127 - 4;
-		if (noise_close < (noise_open  + 4))
-			noise_close =  noise_open  + 4;
-
-		if (glitch_open  > (255 - 8))
-			glitch_open  =  255 - 8;
-		if (glitch_close < (glitch_open + 8))
-			glitch_close =  glitch_open + 8;
 
 		// *********
 
@@ -721,42 +726,10 @@ BK4819_filter_bandwidth_t RADIO_set_bandwidth(BK4819_filter_bandwidth_t bandwidt
 			break;
 	}
 
-	#ifdef ENABLE_FM_DEV_CAL_MENU
-		switch (bandwidth)
-		{
-			case BK4819_FILTER_BW_WIDE:
-				if (g_eeprom.calib.deviation_wide < FM_DEV_LIMIT_LOWER_WIDE || g_eeprom.calib.deviation_wide > FM_DEV_LIMIT_UPPER_WIDE)
-					deviation = FM_DEV_LIMIT_DEFAULT_WIDE;
-				else
-					deviation = g_eeprom.calib.deviation_wide;
-				break;
-			case BK4819_FILTER_BW_NARROW:
-				if (g_eeprom.calib.deviation_narrow < FM_DEV_LIMIT_LOWER_NARROW || g_eeprom.calib.deviation_narrow > FM_DEV_LIMIT_UPPER_NARROW)
-					deviation = FM_DEV_LIMIT_DEFAULT_NARROW;
-				else
-					deviation = g_eeprom.calib.deviation_narrow;
-				break;
-			case BK4819_FILTER_BW_NARROWER:
-				if (g_eeprom.calib.deviation_narrow < FM_DEV_LIMIT_LOWER_NARROW || g_eeprom.calib.deviation_narrow > FM_DEV_LIMIT_UPPER_NARROW)
-					deviation = FM_DEV_LIMIT_DEFAULT_NARROW;
-				else
-					deviation = g_eeprom.calib.deviation_narrow;
-				break;
-		}
-	#else
-		switch (bandwidth)
-		{
-			case BK4819_FILTER_BW_WIDE:
-				deviation = g_eeprom.calib.deviation_wide;
-				break;
-			case BK4819_FILTER_BW_NARROW:
-				deviation = g_eeprom.calib.deviation_narrow;
-				break;
-			case BK4819_FILTER_BW_NARROWER:
-				deviation = g_eeprom.calib.deviation_narrow;
-				break;
-		}
-	#endif
+	if (g_eeprom.calib.deviation < FM_DEV_LIMIT_LOWER || g_eeprom.calib.deviation > FM_DEV_LIMIT_UPPER)
+		deviation = FM_DEV_LIMIT_DEFAULT;
+	else
+		deviation = g_eeprom.calib.deviation;
 	BK4819_set_TX_deviation(deviation);
 
 	BK4819_SetFilterBandwidth(bandwidth);
@@ -1113,7 +1086,7 @@ void RADIO_PrepareTX(void)
 	vfo_state_t State = VFO_STATE_NORMAL;  // default to OK for TX
 
 	#ifdef ENABLE_ALARM
-		if (g_alarm_state == ALARM_STATE_TXALARM && g_eeprom.config.setting.alarm_mode != ALARM_MODE_TONE)
+		if (g_alarm_state == ALARM_STATE_TX_ALARM && g_eeprom.config.setting.alarm_mode != ALARM_MODE_TONE)
 		{	// enable the alarm tone but not the TX
 
 			g_alarm_state = ALARM_STATE_ALARM;
@@ -1186,7 +1159,7 @@ void RADIO_PrepareTX(void)
 
 		RADIO_set_vfo_state(State);
 
-		#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+		#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
 			g_alarm_state = ALARM_STATE_OFF;
 		#endif
 
@@ -1199,24 +1172,32 @@ void RADIO_PrepareTX(void)
 	// ******************************
 	// TX is allowed
 
-	#if defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
-		UART_printf("radio prepare tx %u %s\r\n", g_dtmf_reply_state, g_dtmf_string);
+	#if defined(ENABLE_DTMF_CALLING) && defined(ENABLE_UART) && defined(ENABLE_UART_DEBUG)
+//		UART_printf("radio prepare tx %u %s\r\n", g_dtmf_reply_state, g_dtmf_string);
 	#endif
 
-	if (g_dtmf_reply_state == DTMF_REPLY_ANI)
-	{
-		if (g_dtmf_call_mode == DTMF_CALL_MODE_DTMF)
+	#ifdef ENABLE_DTMF_CALLING
+		if (g_dtmf_reply_state == DTMF_REPLY_STR || g_dtmf_reply_state == DTMF_REPLY_ANI)
 		{
-			g_dtmf_is_tx              = true;
-			g_dtmf_call_state         = DTMF_CALL_STATE_NONE;
+			if (g_dtmf_call_mode == DTMF_CALL_MODE_DTMF)
+			{
+				g_dtmf_call_state         = DTMF_CALL_STATE_NONE;
+				g_dtmf_tx_stop_tick_500ms = dtmf_txstop_500ms;
+				g_dtmf_is_tx              = true;
+			}
+			else
+			{
+				g_dtmf_call_state = DTMF_CALL_STATE_CALL_OUT;
+				g_dtmf_is_tx      = false;
+			}
+		}
+	#else
+		if (g_dtmf_reply_state == DTMF_REPLY_STR)
+		{
 			g_dtmf_tx_stop_tick_500ms = dtmf_txstop_500ms;
+			g_dtmf_is_tx              = true;
 		}
-		else
-		{
-			g_dtmf_call_state = DTMF_CALL_STATE_CALL_OUT;
-			g_dtmf_is_tx      = false;
-		}
-	}
+	#endif
 
 	FUNCTION_Select(FUNCTION_TRANSMIT);
 }
@@ -1257,7 +1238,7 @@ void RADIO_PrepareCssTX(void)
 
 void RADIO_tx_eot(void)
 {
-	#if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
+	#if defined(ENABLE_ALARM) || (ENABLE_TX_TONE_HZ > 0)
 		if (g_alarm_state != ALARM_STATE_OFF)
 		{	// don't send EOT if TX'ing tone/alarm
 			BK4819_ExitDTMF_TX(true);
@@ -1265,7 +1246,10 @@ void RADIO_tx_eot(void)
 		}
 	#endif
 
-	if (g_dtmf_call_state == DTMF_CALL_STATE_NONE &&
+	if (
+		#ifdef ENABLE_DTMF_CALLING
+			g_dtmf_call_state == DTMF_CALL_STATE_NONE &&
+		#endif
 	   (g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_EOT || g_current_vfo->channel.dtmf_ptt_id_tx_mode == PTT_ID_BOTH))
 	{	// end-of-tx
 		if (g_eeprom.config.setting.dtmf.side_tone)

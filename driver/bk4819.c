@@ -96,8 +96,8 @@ void BK4819_Init(void)
 		(58u <<  4) |     // AF Rx Gain-2
 		( 8u <<  0));     // AF DAC Gain (after Gain-1 and Gain-2)
 
-	// squelch mode
-	BK4819_write_reg(0x77, 0x88EF);     // rssi + noise + glitch .. RT-890
+	// squelch mode - DO NOT USE THESE, THEY MESS UP THE SQUELCH :(
+//	BK4819_write_reg(0x77, 0x88EF);     // rssi + noise + glitch .. RT-890
 //	BK4819_write_reg(0x77, 0xA8EF);     // rssi + noise + glitch .. default
 //	BK4819_write_reg(0x77, 0xAAEF);     // rssi + glitch
 //	BK4819_write_reg(0x77, 0xCCEF);     // rssi + noise
@@ -444,9 +444,14 @@ void BK4819_set_TX_deviation(uint16_t deviation)
 //	const uint8_t scrambler = (BK4819_read_reg(0x31) >> 1) & 1u;
 //	if (scrambler)
 //		deviation -= 200;
+
+#if 0
 	if (deviation > 4095)
 		deviation = 4095;
 	BK4819_write_reg(0x40, (3u << 12) | deviation);   // deviaion 0 ~ 4095
+#else
+	(void)deviation;
+#endif
 }
 
 void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth)
@@ -597,7 +602,7 @@ void BK4819_SetupSquelch(
 		uint8_t squelch_close_glitch_thresh,
 		uint8_t squelch_open_glitch_thresh)
 {
-	// squelch mode
+	// squelch mode - DO NOT USE THESE, THEY MESS UP THE SQUELCH :(
 //	BK4819_write_reg(0x77, 0x88EF);     // rssi + noise + glitch .. RT-890
 //	BK4819_write_reg(0x77, 0xA8EF);     // rssi + noise + glitch .. default
 //	BK4819_write_reg(0x77, 0xAAEF);     // rssi + glitch
@@ -676,7 +681,7 @@ void BK4819_SetupSquelch(
 	//
 	// <7:0>  70 RSSI threshold for Squelch = close   0.5dB/step
 	//
-	BK4819_write_reg(0x78, ((uint16_t)squelch_open_rssi_thresh   << 8) | squelch_close_rssi_thresh);
+	BK4819_write_reg(0x78, ((uint16_t)squelch_open_rssi_thresh << 8) | squelch_close_rssi_thresh);
 
 	BK4819_SetAF(BK4819_AF_MUTE);
 

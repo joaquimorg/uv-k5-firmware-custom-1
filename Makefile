@@ -38,7 +38,7 @@ ENABLE_ALARM                     := 0
 ENABLE_TX_TONE_HZ                := 1750
 #
 # MDC1200 2.8 kB
-ENABLE_MDC1200                   := 0
+ENABLE_MDC1200                   := 1
 ENABLE_MDC1200_SHOW_OP_ARG       := 1
 ENABLE_MDC1200_SIDE_BEEP         := 1
 #
@@ -48,7 +48,7 @@ ENABLE_BIG_FREQ                  := 0
 #
 # DTMF_CALLING 2.8 kB
 ENABLE_DTMF_CALLING              := 0
-ENABLE_DTMF_LIVE_DECODER         := 0
+ENABLE_DTMF_LIVE_DECODER         := 1
 ENABLE_DTMF_TIMING_SETTINGS      := 0
 ENABLE_DTMF_CALL_FLASH_LIGHT     := 0
 # Kill and Revive 400 B
@@ -81,9 +81,9 @@ ENABLE_FREQ_SEARCH_LNA           := 0
 ENABLE_FREQ_SEARCH_TIMEOUT       := 0
 ENABLE_CODE_SEARCH_TIMEOUT       := 0
 # scan ignore list 740 B
-ENABLE_SCAN_IGNORE_LIST          := 1
+ENABLE_SCAN_IGNORE_LIST          := 0
 # scan ranges 400 B
-ENABLE_SCAN_RANGES               := 1
+ENABLE_SCAN_RANGES               := 0
 # AM Fix 800 B
 ENABLE_AM_FIX                    := 1
 ENABLE_AM_FIX_SHOW_DATA          := 0
@@ -95,7 +95,7 @@ ENABLE_COPY_CHAN_TO_VFO_TO_CHAN  := 0
 ENABLE_TX_AUDIO_BAR              := 0
 ENABLE_TX_AUDIO_BACKLIGHT        := 0
 # Side Button Menu 300 B
-ENABLE_SIDE_BUTT_MENU            := 0
+ENABLE_SIDE_BUTT_MENU            := 1
 # Key Lock 400 B
 ENABLE_KEYLOCK                   := 0
 # panadapter 1.5kB
@@ -533,9 +533,9 @@ ifeq ($(DEBUG),1)
 endif
 
 INC =
-INC += -I $(TOP)
-INC += -I $(TOP)/external/CMSIS_5/CMSIS/Core/Include/
-INC += -I $(TOP)/external/CMSIS_5/Device/ARM/ARMCM0/Include
+INC += -I $(TOP)/.
+INC += -I $(TOP)/external/CMSIS_5/CMSIS/Core/Include/.
+INC += -I $(TOP)/external/CMSIS_5/Device/ARM/ARMCM0/Include/.
 
 LIBS =
 
